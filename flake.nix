@@ -36,6 +36,10 @@
           };
           rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
           craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+          xcodeXcrun = pkgs.writeShellScriptBin "xcrun" ''
+            unset DEVELOPER_DIR
+            exec /usr/bin/xcrun "$@"
+          '';
           desktopRuntimeLibraries = pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.libx11
             pkgs.libxcursor
@@ -78,7 +82,8 @@
               pkgs.pkg-config
               pkgs.protobuf
             ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.makeWrapper ];
+            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.makeWrapper ]
+            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ xcodeXcrun ];
             buildInputs = [
               pkgs.libopus
             ]
