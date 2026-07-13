@@ -123,10 +123,11 @@
               pname = "grimoire";
               version = "0.1.0";
             };
-            test = craneLib.cargoTest (
+            test = craneLib.cargoNextest (
               commonArgs
               // {
                 inherit cargoArtifacts;
+                cargoNextestExtraArgs = "--workspace";
               }
             );
           };
@@ -137,6 +138,7 @@
             );
             packages = [
               pkgs.cmake
+              pkgs.cargo-nextest
               pkgs.libopus
               pkgs.pkg-config
               pkgs.protobuf

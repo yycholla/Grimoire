@@ -14,8 +14,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  nix:
-    name: Nix (${{ matrix.system }})
+  quality:
+    name: Quality
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+        with:
+          use-flakehub: 'false'
+          diagnostic-endpoint: ''
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Evaluate flake
+        run: nix flake check --no-build
+      - name: Check formatting
+        run: nix develop --command cargo fmt --all -- --check
+      - name: Check workspace
+        run: nix develop --command cargo check --workspace --all-targets
+      - name: Lint workspace
+        run: nix develop --command cargo clippy --workspace --all-targets -- --deny warnings
+
+  test:
+    name: Tests
+    needs: quality
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+        with:
+          use-flakehub: 'false'
+          diagnostic-endpoint: ''
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Run tests
+        run: nix develop --command cargo nextest run --workspace
+
+  build:
+    name: Build (${{ matrix.system }})
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -38,25 +78,16 @@ jobs:
           diagnostic-endpoint: ''
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         if: runner.os == 'Linux'
-      - name: Check and build with Nix
-        if: runner.os != 'Linux'
-        shell: bash
-        run: |
-          nix flake check --print-build-logs
-          nix build --no-link --print-build-logs ".#packages.${{ matrix.system }}.default"
-      - name: Validate in Nix development environment
+      - name: Build release
         if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          nix flake check --no-build
-          nix develop --command cargo fmt --all -- --check
-          nix develop --command cargo check --workspace --all-targets
-          nix develop --command cargo clippy --workspace --all-targets -- --deny warnings
-          nix develop --command cargo test --workspace
-          nix develop --command cargo build --workspace --release
+        run: nix develop --command cargo build --workspace --release
+      - name: Build Nix package
+        if: runner.os != 'Linux'
+        run: nix build --no-link --print-build-logs ".#packages.${{ matrix.system }}.default"
 
   windows:
-    name: Windows (x86_64)
+    name: Build (x86_64-windows)
+    needs: test
     runs-on: windows-2025
     env:
       CMAKE_POLICY_VERSION_MINIMUM: '3.5'
@@ -65,17 +96,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
         with:
           toolchain: 1.97.0
-          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-nextest
       - name: Install protobuf compiler
         run: choco install protoc --yes --no-progress
-      - name: Validate
-        run: |
-          cargo fmt --all -- --check
-          cargo check --workspace --all-targets
-          cargo clippy --workspace --all-targets -- --deny warnings
-          cargo test --workspace
-          cargo build --workspace --release
+      - name: Run tests
+        run: cargo nextest run --workspace
+      - name: Build release
+        run: cargo build --workspace --release
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: grimoire-windows-x86_64

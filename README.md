@@ -62,7 +62,7 @@ Run these inside the development environment:
 
 ```console
 cargo fmt --all -- --check
-cargo test --workspace
+cargo nextest run --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
@@ -75,9 +75,15 @@ nix flake check path:.
 Useful focused suites:
 
 ```console
-cargo test -p grimoire-core --test replication
-cargo test -p grimoire-audio --test codec
-cargo test -p grimoire-audio --test playout
+cargo nextest run -p grimoire-core --test replication
+cargo nextest run -p grimoire-audio --test codec
+cargo nextest run -p grimoire-audio --test playout
+```
+
+Build and open the Rust API documentation locally:
+
+```console
+cargo doc --workspace --no-deps --open
 ```
 
 ## Run the desktop client
