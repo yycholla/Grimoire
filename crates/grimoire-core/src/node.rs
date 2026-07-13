@@ -921,6 +921,11 @@ impl ProtocolHandler for OperationHandler {
                     .connection
                     .close(0u32.into(), b"initial sync failed");
                 handler.untrack_connection(&sync_peer).await;
+                if handler.connections.lock().await.iter().any(|peer| {
+                    peer.member == sync_peer.member && peer.connection.close_reason().is_none()
+                }) {
+                    return;
+                }
                 let _ = handler.events.send(Event::Fault(error));
             }
         });
