@@ -786,6 +786,11 @@ async fn connect_peer(
             .close(0u32.into(), b"initial sync failed");
         handler.untrack_connection(&connection).await;
         guard.complete();
+        if handler.connections.lock().await.iter().any(|peer| {
+            peer.member == connection.member && peer.connection.close_reason().is_none()
+        }) {
+            return Ok(());
+        }
         return Err(error);
     }
     guard.complete();
