@@ -41,6 +41,8 @@ jobs:
     needs: quality
     runs-on: ubuntu-24.04
     env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_PROFILE_TEST_DEBUG: 0
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -68,6 +70,7 @@ jobs:
             system: aarch64-darwin
     runs-on: ${{ matrix.runner }}
     env:
+      CARGO_BUILD_JOBS: 2
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
