@@ -704,7 +704,26 @@ impl Focusable for TextInput {
 
 #[cfg(test)]
 mod tests {
+    use gpui::{Modifiers, MouseButton, TestAppContext, point};
+
     use super::{next_word_boundary, previous_word_boundary, replace_content};
+
+    #[gpui::test]
+    fn clicking_placeholder_then_backspace_does_not_panic(cx: &mut TestAppContext) {
+        super::init(cx);
+        let (input, cx) = cx.add_window_view(|_, cx| super::TextInput::new(cx, "display name"));
+        cx.update(|window, app| window.focus(&input.read(app).focus));
+        let position = input.read_with(cx, |input, _| {
+            let bounds = input.last_bounds.expect("input was painted");
+            let line = input.last_layout.as_ref().expect("input was shaped");
+            point(bounds.left() + line.x_for_index(12), bounds.top())
+        });
+
+        cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::default());
+        cx.simulate_keystrokes("backspace");
+
+        assert_eq!(input.read_with(cx, |input, _| input.cursor()), 0);
+    }
 
     #[test]
     fn stale_edit_range_is_clamped_after_submit() {
