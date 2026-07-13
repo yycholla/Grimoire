@@ -1,0 +1,16 @@
+[package]
+name = "peer-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+peer-audio = { path = "../../crates/peer-audio" }
+peer-core = { path = "../../crates/peer-core" }
+rand.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

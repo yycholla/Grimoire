@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package peer.v1;
+
+message TextMessage {
+  bytes id = 1;
+  // Legacy plaintext. New operations leave this empty.
+  string body = 2;
+  bytes author = 3;
+  bytes signature = 4;
+  bytes channel_id = 5;
+  uint64 epoch = 6;
+  bytes membership_head = 7;
+  bytes nonce = 8;
+  bytes ciphertext = 9;
+}
+
+message Attachment {
+  bytes id = 1;
+  bytes author = 2;
+  bytes channel_id = 3;
+  uint64 epoch = 5;
+  bytes membership_head = 6;
+  bytes nonce = 7;
+  bytes ciphertext = 8;
+  bytes signature = 9;
+}
+
+message VoiceFrame {
+  bytes stream_id = 1;
+  uint64 sequence = 2;
+  bytes payload = 3;
+  bytes channel_id = 4;
+  uint64 epoch = 5;
+  bytes membership_head = 6;
+  bytes nonce = 7;
+}
+
+message VoicePresence {
+  uint64 epoch = 1;
+  bytes membership_head = 2;
+  bytes nonce = 3;
+  bytes ciphertext = 4;
+}
+
+message VoicePresencePayload {
+  bytes channel_id = 1;
+  oneof state {
+    bool joined = 2;
+    bool left = 3;
+    bool muted = 4;
+  }
+}
+
+message KeyRegistration {
+  bytes member = 1;
+  bytes public_key = 2;
+  bytes signature = 3;
+}
+
+message ContentKeyEnvelope {
+  uint64 epoch = 1;
+  bytes membership_head = 2;
+  bytes recipient = 3;
+  bytes encapsulated_key = 4;
+  bytes ciphertext = 5;
+  bytes signature = 6;
+}
+
+message CreateChannel {
+  bytes id = 1;
+  string name = 2;
+  uint32 kind = 3;
+  bytes signature = 4;
+}
+
+message MembershipChange {
+  uint64 revision = 1;
+  bytes member = 2;
+  bool admitted = 3;
+  bytes signature = 4;
+  bool availability = 5;
+}
+
+message MemberProfile {
+  bytes member = 1;
+  uint64 revision = 2;
+  uint64 epoch = 3;
+  bytes membership_head = 4;
+  bytes nonce = 5;
+  bytes ciphertext = 6;
+  bytes signature = 7;
+}
+
+message EncryptedTextIdentity {
+  bytes author = 1;
+  bytes id = 2;
+}
+
+message TextInventory {
+  repeated EncryptedTextIdentity messages = 1;
+}
+
+message Operation {
+  oneof body {
+    TextMessage text = 1;
+    MembershipChange membership = 2;
+    CreateChannel create_channel = 3;
+    KeyRegistration key_registration = 4;
+    ContentKeyEnvelope content_key_envelope = 5;
+    Attachment attachment = 6;
+    MemberProfile member_profile = 7;
+    VoicePresence voice_presence = 8;
+    TextInventory text_inventory = 9;
+  }
+}

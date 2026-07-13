@@ -1,0 +1,16 @@
+[package]
+name = "peer-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cpal.workspace = true
+opus.workspace = true
+peer-core = { path = "../peer-core" }
+rand.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

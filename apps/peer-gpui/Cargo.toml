@@ -1,0 +1,20 @@
+[package]
+name = "peer-gpui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+dirs.workspace = true
+gpui.workspace = true
+peer-audio = { path = "../../crates/peer-audio" }
+peer-core = { path = "../../crates/peer-core" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile = "3.20"
+
+[lints]
+workspace = true

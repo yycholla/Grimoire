@@ -1,0 +1,13 @@
+/target/
+/.direnv/
+/result
+/result-*
+/.scratch/
+/ARCHITECTURE.md
+/CONTEXT.md
+/docs/research/
+.superpowers/
+/.claude/
+/.serena/
+/peer-community-data/
+/docs/superpowers/
