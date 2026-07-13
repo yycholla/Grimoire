@@ -86,7 +86,18 @@ jobs:
         run: nix develop --command cargo build --workspace --release
       - name: Build Nix package
         if: runner.os != 'Linux'
-        run: nix build --no-link --print-build-logs ".#packages.${{ matrix.system }}.default"
+        run: nix build --out-link result --print-build-logs ".#packages.${{ matrix.system }}.default"
+      - name: Package Linux binaries
+        if: runner.os == 'Linux'
+        run: tar -czf "grimoire-${{ matrix.system }}.tar.gz" -C target/release grimoire grimoire-cli
+      - name: Package Nix binaries
+        if: runner.os != 'Linux'
+        run: tar -czf "grimoire-${{ matrix.system }}.tar.gz" -C result/bin grimoire grimoire-cli
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: grimoire-${{ matrix.system }}
+          path: grimoire-${{ matrix.system }}.tar.gz
+          if-no-files-found: error
 
   windows:
     name: Build (x86_64-windows)
