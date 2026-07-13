@@ -29,15 +29,24 @@ jobs:
           diagnostic-endpoint: ''
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        if: github.event.repository.private == false
       - name: Build Rust documentation
         run: nix develop --command cargo doc --workspace --no-deps
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: github.event.repository.private == false
         with:
           path: target/doc
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event.repository.private
+        with:
+          name: grimoire-rust-docs
+          path: target/doc
+          if-no-files-found: error
 
   deploy:
     name: Deploy documentation
     needs: build
+    if: github.event.repository.private == false
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
