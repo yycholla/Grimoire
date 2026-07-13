@@ -147,7 +147,7 @@
             ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.apple-sdk ];
             shellHook = ''
               unset RUSTC_WRAPPER CARGO_BUILD_RUSTC_WRAPPER
-              export CARGO_TARGET_DIR="''${XDG_CACHE_HOME:-$HOME/.cache}/peer-community/target"
+              export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-''${XDG_CACHE_HOME:-$HOME/.cache}/grimoire/target}"
             '';
           };
         }

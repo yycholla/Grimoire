@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -26,19 +27,28 @@ jobs:
           - runner: macos-15
             system: aarch64-darwin
     runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+        with:
+          use-flakehub: 'false'
+          diagnostic-endpoint: ''
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        if: runner.os == 'Linux'
       - name: Check and build with Nix
-        if: matrix.system != 'aarch64-linux'
+        if: runner.os != 'Linux'
         shell: bash
         run: |
           nix flake check --print-build-logs
           nix build --no-link --print-build-logs ".#packages.${{ matrix.system }}.default"
       - name: Validate in Nix development environment
-        if: matrix.system == 'aarch64-linux'
+        if: runner.os == 'Linux'
         shell: bash
         run: |
+          nix flake check --no-build
           nix develop --command cargo fmt --all -- --check
           nix develop --command cargo check --workspace --all-targets
           nix develop --command cargo clippy --workspace --all-targets -- --deny warnings
@@ -56,6 +66,7 @@ jobs:
         with:
           toolchain: 1.97.0
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: Install protobuf compiler
         run: choco install protoc --yes --no-progress
       - name: Validate
