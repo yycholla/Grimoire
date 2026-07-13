@@ -1,9 +1,9 @@
 [workspace]
 members = [
-  "apps/peer-gpui",
-  "crates/peer-audio",
-  "crates/peer-core",
-  "tools/peer-cli",
+  "apps/grimoire",
+  "crates/grimoire-audio",
+  "crates/grimoire-core",
+  "tools/grimoire-cli",
 ]
 resolver = "3"
 

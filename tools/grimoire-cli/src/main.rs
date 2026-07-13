@@ -2,11 +2,11 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use peer_audio::VoiceSession;
-use peer_core::{Command, CommunityInvite, Event, MessageId, Node, NodeConfig, TextMessage};
+use grimoire_audio::VoiceSession;
+use grimoire_core::{Command, CommunityInvite, Event, MessageId, Node, NodeConfig, TextMessage};
 
 #[derive(Debug, Parser)]
-#[command(about = "Temporary peer-core connectivity harness")]
+#[command(about = "Temporary Grimoire connectivity harness")]
 struct Args {
     #[arg(
         long,
@@ -125,7 +125,7 @@ async fn availability(
     Ok(())
 }
 
-fn member_hex(member: peer_core::MemberId) -> String {
+fn member_hex(member: grimoire_core::MemberId) -> String {
     member
         .as_bytes()
         .iter()

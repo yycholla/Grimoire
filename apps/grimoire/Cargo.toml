@@ -1,5 +1,5 @@
 [package]
-name = "peer-gpui"
+name = "grimoire"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,13 +7,14 @@ rust-version.workspace = true
 [dependencies]
 dirs.workspace = true
 gpui.workspace = true
-peer-audio = { path = "../../crates/peer-audio" }
-peer-core = { path = "../../crates/peer-core" }
+grimoire-audio = { path = "../../crates/grimoire-audio" }
+grimoire-core = { path = "../../crates/grimoire-core" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
 tempfile = "3.20"
 
 [lints]

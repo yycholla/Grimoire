@@ -1,6 +1,6 @@
 use std::{path::Path, time::Duration};
 
-use peer_core::{
+use grimoire_core::{
     Attachment, Channel, ChannelId, ChannelKind, Command, Event, FaultKind, MemberRole,
     MembershipChange, MessageId, Node, NodeConfig, TextMessage,
 };
@@ -72,7 +72,7 @@ async fn availability_peer_retains_and_serves_ciphertext_without_content_access(
     owner
         .execute(Command::SetVoicePresence {
             channel: ChannelId::VOICE_ROOM,
-            state: peer_core::VoicePresence::Joined,
+            state: grimoire_core::VoicePresence::Joined,
         })
         .await
         .unwrap();
@@ -122,7 +122,7 @@ async fn availability_peer_retains_and_serves_ciphertext_without_content_access(
         availability
             .execute(Command::SetVoicePresence {
                 channel: ChannelId::VOICE_ROOM,
-                state: peer_core::VoicePresence::Joined,
+                state: grimoire_core::VoicePresence::Joined,
             })
             .await
             .unwrap_err()
@@ -244,7 +244,7 @@ async fn availability_peer_retains_and_serves_ciphertext_without_content_access(
     participant.shutdown().await.unwrap();
 }
 
-async fn next_membership(events: &mut broadcast::Receiver<Event>) -> peer_core::Community {
+async fn next_membership(events: &mut broadcast::Receiver<Event>) -> grimoire_core::Community {
     timeout(Duration::from_secs(5), async {
         loop {
             match events.recv().await.unwrap() {
@@ -258,7 +258,7 @@ async fn next_membership(events: &mut broadcast::Receiver<Event>) -> peer_core::
     .unwrap()
 }
 
-async fn connect_eventually(node: &Node, address: peer_core::PeerAddress) {
+async fn connect_eventually(node: &Node, address: grimoire_core::PeerAddress) {
     timeout(Duration::from_secs(5), async {
         loop {
             if node.connect(address.clone()).await.is_ok() {
@@ -303,7 +303,7 @@ async fn query_count(dir: &Path, table: &str) -> i64 {
         .unwrap()
 }
 
-async fn query_recipient_envelopes(dir: &Path, member: peer_core::MemberId) -> i64 {
+async fn query_recipient_envelopes(dir: &Path, member: grimoire_core::MemberId) -> i64 {
     let database = turso::Builder::new_local(&dir.join("peer.db").to_string_lossy())
         .build()
         .await

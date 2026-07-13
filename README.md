@@ -51,10 +51,10 @@ Or install it into your Nix profile:
 
 ```console
 nix profile install path:.
-peer-gpui
+grimoire
 ```
 
-The package installs `peer-gpui`, the `peer-cli` diagnostics harness, and a **Peer Community** desktop-menu entry. Updates remain controlled by Nix; the application does not self-update.
+The package installs `grimoire`, the `grimoire-cli` diagnostics harness, and a **Grimoire** desktop-menu entry. Updates remain controlled by Nix; the application does not self-update.
 
 ## Run the checks
 
@@ -75,17 +75,17 @@ nix flake check path:.
 Useful focused suites:
 
 ```console
-cargo test -p peer-core --test replication
-cargo test -p peer-audio --test codec
-cargo test -p peer-audio --test playout
+cargo test -p grimoire-core --test replication
+cargo test -p grimoire-audio --test codec
+cargo test -p grimoire-audio --test playout
 ```
 
 ## Run the desktop client
 
 ```console
-cargo run -p peer-gpui
-cargo run -p peer-gpui -- /path/to/community-a /path/to/community-b
-cargo run -p peer-gpui -- --preview
+cargo run -p grimoire
+cargo run -p grimoire -- /path/to/community-a /path/to/community-b
+cargo run -p grimoire -- --preview
 ```
 
 With no path, the client reopens the last Community or shows native Create,
@@ -103,7 +103,7 @@ runtime limitation, not an accessibility guarantee.
 Create an owner Community:
 
 ```console
-cargo run -p peer-gpui -- --create /path/to/owner-community
+cargo run -p grimoire -- --create /path/to/owner-community
 ```
 
 To exercise two peers locally:
@@ -134,7 +134,7 @@ long-term identity keys, the Community identity, and the latest locally availabl
 content key. Keep the backup and passphrase separate. `/backup` remains available
 for keyboard-driven testing.
 
-To recover, stop the old installation, start `peer-gpui` without arguments, and choose **recover an identity**. Recovery passphrases stay inside the masked native field instead of shell history or process arguments. After opening, use **≡ → connect** with a current Community peer so membership, key envelopes, channels, and history can catch up. Running the same recovered identity on two devices at once is unsupported.
+To recover, stop the old installation, start `grimoire` without arguments, and choose **recover an identity**. Recovery passphrases stay inside the masked native field instead of shell history or process arguments. After opening, use **≡ → connect** with a current Community peer so membership, key envelopes, channels, and history can catch up. Running the same recovered identity on two devices at once is unsupported.
 
 Data directories created before content encryption keep their old plaintext messages as local-only history. New messages use encrypted storage and wire operations. For full encryption guarantees in manual acceptance testing, create fresh data directories.
 
@@ -152,13 +152,13 @@ manually:
 2. Start the headless peer with a new persistent data directory:
 
    ```console
-   cargo run -p peer-cli -- availability --data-dir "$HOME/.local/share/peer-community/availability" --invite '<community-invite>'
+   cargo run -p grimoire-cli -- availability --data-dir "$HOME/.local/share/grimoire/availability" --invite '<community-invite>'
    ```
 
    To prohibit direct paths, put the global flag before the subcommand:
 
    ```console
-   cargo run -p peer-cli -- --relay-only availability --data-dir "$HOME/.local/share/peer-community/availability" --invite '<community-invite>'
+   cargo run -p grimoire-cli -- --relay-only availability --data-dir "$HOME/.local/share/grimoire/availability" --invite '<community-invite>'
    ```
 
 3. The command prints its stable identity and current Iroh address, connects to
@@ -174,31 +174,31 @@ the routing identifiers, timing, sizes, and peer addresses required to store
 and transport ciphertext. The machine running it is therefore trusted for
 availability and metadata exposure, not for Community content.
 
-## Run the temporary peer harness
+## Run the temporary Grimoire harness
 
 Inspect the available commands:
 
 ```console
-cargo run -p peer-cli -- --help
+cargo run -p grimoire-cli -- --help
 ```
 
 Start a peer and print its Iroh address:
 
 ```console
-cargo run -p peer-cli -- serve --data-dir /tmp/peer-community-a
+cargo run -p grimoire-cli -- serve --data-dir /tmp/grimoire-a
 ```
 
 Inspect the selected direct or relay path and its RTT after connecting an existing community data directory:
 
 ```console
-cargo run -p peer-cli -- diagnose --data-dir /tmp/peer-community-a --address '<peer-address>'
-cargo run -p peer-cli -- --relay-only diagnose --data-dir /tmp/peer-community-a --address '<peer-address>'
+cargo run -p grimoire-cli -- diagnose --data-dir /tmp/grimoire-a --address '<peer-address>'
+cargo run -p grimoire-cli -- --relay-only diagnose --data-dir /tmp/grimoire-a --address '<peer-address>'
 ```
 
 The selected line reports `kind=Direct` or `kind=Relay`, `selected=true`, and `rtt_ms`. The forced public-relay smoke test is intentionally ignored by the offline test suite and can be run explicitly:
 
 ```console
-cargo test -p peer-core --test wan_acceptance -- --ignored --nocapture
+cargo test -p grimoire-core --test wan_acceptance -- --ignored --nocapture
 ```
 
 The current CLI is a transport, audio, and headless availability harness, not

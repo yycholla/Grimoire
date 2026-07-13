@@ -9,7 +9,7 @@ use gpui::{
 };
 
 actions!(
-    peer_text_input,
+    grimoire_text_input,
     [
         Backspace,
         Delete,
@@ -39,39 +39,47 @@ pub struct Submitted;
 
 pub fn init(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("backspace", Backspace, Some("PeerTextInput")),
-        KeyBinding::new("delete", Delete, Some("PeerTextInput")),
-        KeyBinding::new("left", Left, Some("PeerTextInput")),
-        KeyBinding::new("right", Right, Some("PeerTextInput")),
-        KeyBinding::new("shift-left", SelectLeft, Some("PeerTextInput")),
-        KeyBinding::new("shift-right", SelectRight, Some("PeerTextInput")),
-        KeyBinding::new("alt-left", WordLeft, Some("PeerTextInput")),
-        KeyBinding::new("alt-right", WordRight, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-left", WordLeft, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-right", WordRight, Some("PeerTextInput")),
-        KeyBinding::new("alt-shift-left", SelectWordLeft, Some("PeerTextInput")),
-        KeyBinding::new("alt-shift-right", SelectWordRight, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-shift-left", SelectWordLeft, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-shift-right", SelectWordRight, Some("PeerTextInput")),
-        KeyBinding::new("home", Home, Some("PeerTextInput")),
-        KeyBinding::new("end", End, Some("PeerTextInput")),
-        KeyBinding::new("cmd-left", Home, Some("PeerTextInput")),
-        KeyBinding::new("cmd-right", End, Some("PeerTextInput")),
-        KeyBinding::new("shift-home", SelectHome, Some("PeerTextInput")),
-        KeyBinding::new("shift-end", SelectEnd, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-a", SelectAll, Some("PeerTextInput")),
-        KeyBinding::new("cmd-a", SelectAll, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-v", Paste, Some("PeerTextInput")),
-        KeyBinding::new("cmd-v", Paste, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-c", Copy, Some("PeerTextInput")),
-        KeyBinding::new("cmd-c", Copy, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-x", Cut, Some("PeerTextInput")),
-        KeyBinding::new("cmd-x", Cut, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-z", Undo, Some("PeerTextInput")),
-        KeyBinding::new("ctrl-shift-z", Redo, Some("PeerTextInput")),
-        KeyBinding::new("cmd-z", Undo, Some("PeerTextInput")),
-        KeyBinding::new("cmd-shift-z", Redo, Some("PeerTextInput")),
-        KeyBinding::new("enter", Submit, Some("PeerTextInput")),
+        KeyBinding::new("backspace", Backspace, Some("GrimoireTextInput")),
+        KeyBinding::new("delete", Delete, Some("GrimoireTextInput")),
+        KeyBinding::new("left", Left, Some("GrimoireTextInput")),
+        KeyBinding::new("right", Right, Some("GrimoireTextInput")),
+        KeyBinding::new("shift-left", SelectLeft, Some("GrimoireTextInput")),
+        KeyBinding::new("shift-right", SelectRight, Some("GrimoireTextInput")),
+        KeyBinding::new("alt-left", WordLeft, Some("GrimoireTextInput")),
+        KeyBinding::new("alt-right", WordRight, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-left", WordLeft, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-right", WordRight, Some("GrimoireTextInput")),
+        KeyBinding::new("alt-shift-left", SelectWordLeft, Some("GrimoireTextInput")),
+        KeyBinding::new(
+            "alt-shift-right",
+            SelectWordRight,
+            Some("GrimoireTextInput"),
+        ),
+        KeyBinding::new("ctrl-shift-left", SelectWordLeft, Some("GrimoireTextInput")),
+        KeyBinding::new(
+            "ctrl-shift-right",
+            SelectWordRight,
+            Some("GrimoireTextInput"),
+        ),
+        KeyBinding::new("home", Home, Some("GrimoireTextInput")),
+        KeyBinding::new("end", End, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-left", Home, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-right", End, Some("GrimoireTextInput")),
+        KeyBinding::new("shift-home", SelectHome, Some("GrimoireTextInput")),
+        KeyBinding::new("shift-end", SelectEnd, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-a", SelectAll, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-a", SelectAll, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-v", Paste, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-v", Paste, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-c", Copy, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-c", Copy, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-x", Cut, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-x", Cut, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-z", Undo, Some("GrimoireTextInput")),
+        KeyBinding::new("ctrl-shift-z", Redo, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-z", Undo, Some("GrimoireTextInput")),
+        KeyBinding::new("cmd-shift-z", Redo, Some("GrimoireTextInput")),
+        KeyBinding::new("enter", Submit, Some("GrimoireTextInput")),
     ]);
 }
 
@@ -150,12 +158,14 @@ impl TextInput {
     }
 
     fn move_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let offset = floor_char_boundary(&self.content, offset);
         self.selected = offset..offset;
         self.reversed = false;
         cx.notify();
     }
 
     fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let offset = floor_char_boundary(&self.content, offset);
         if self.reversed {
             self.selected.start = offset;
         } else {
@@ -169,6 +179,7 @@ impl TextInput {
     }
 
     fn previous_boundary(&self, offset: usize) -> usize {
+        let offset = floor_char_boundary(&self.content, offset);
         self.content[..offset]
             .char_indices()
             .next_back()
@@ -176,6 +187,7 @@ impl TextInput {
     }
 
     fn next_boundary(&self, offset: usize) -> usize {
+        let offset = floor_char_boundary(&self.content, offset);
         self.content[offset..]
             .char_indices()
             .nth(1)
@@ -189,9 +201,32 @@ impl TextInput {
     fn next_word_boundary(&self, offset: usize) -> usize {
         next_word_boundary(&self.content, offset)
     }
+
+    fn display_offset(&self, offset: usize) -> usize {
+        let offset = floor_char_boundary(&self.content, offset);
+        if self.masked {
+            self.content[..offset].chars().count()
+        } else {
+            offset
+        }
+    }
+
+    fn content_offset_from_display(&self, offset: usize) -> usize {
+        if self.content.is_empty() {
+            0
+        } else if self.masked {
+            self.content
+                .char_indices()
+                .nth(offset)
+                .map_or(self.content.len(), |(offset, _)| offset)
+        } else {
+            floor_char_boundary(&self.content, offset)
+        }
+    }
 }
 
 fn previous_word_boundary(content: &str, offset: usize) -> usize {
+    let offset = floor_char_boundary(content, offset);
     let mut boundary = offset;
     let mut in_word = false;
     for (index, character) in content[..offset].char_indices().rev() {
@@ -205,6 +240,7 @@ fn previous_word_boundary(content: &str, offset: usize) -> usize {
 }
 
 fn next_word_boundary(content: &str, offset: usize) -> usize {
+    let offset = floor_char_boundary(content, offset);
     let mut boundary = content.len();
     let mut left_word = false;
     for (relative, character) in content[offset..].char_indices() {
@@ -218,17 +254,32 @@ fn next_word_boundary(content: &str, offset: usize) -> usize {
 }
 
 fn replace_content(content: &str, range: Range<usize>, text: &str) -> (SharedString, usize) {
-    let mut start = range.start.min(content.len());
-    let mut end = range.end.min(content.len());
-    while !content.is_char_boundary(start) {
-        start -= 1;
-    }
-    while !content.is_char_boundary(end) {
-        end -= 1;
-    }
+    let start = floor_char_boundary(content, range.start);
+    let mut end = floor_char_boundary(content, range.end);
     end = end.max(start);
     let content = (content[..start].to_owned() + text + &content[end..]).into();
     (content, start + text.len())
+}
+
+fn floor_char_boundary(content: &str, offset: usize) -> usize {
+    let mut offset = offset.min(content.len());
+    while !content.is_char_boundary(offset) {
+        offset -= 1;
+    }
+    offset
+}
+
+fn offset_from_utf16(content: &str, offset: usize) -> usize {
+    content
+        .chars()
+        .scan((0, 0), |(utf8, utf16), ch| {
+            let current = (*utf8, *utf16);
+            *utf8 += ch.len_utf8();
+            *utf16 += ch.len_utf16();
+            Some(current)
+        })
+        .find_map(|(utf8, utf16)| (utf16 >= offset).then_some(utf8))
+        .unwrap_or(content.len())
 }
 
 impl TextInput {
@@ -366,7 +417,7 @@ impl TextInput {
         if position.y > bounds.bottom() {
             return self.content.len();
         }
-        line.closest_index_for_x(position.x - bounds.left())
+        self.content_offset_from_display(line.closest_index_for_x(position.x - bounds.left()))
     }
 
     fn mouse_down(&mut self, event: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -385,19 +436,11 @@ impl TextInput {
     }
 
     fn offset_from_utf16(&self, offset: usize) -> usize {
-        self.content
-            .chars()
-            .scan((0, 0), |(utf8, utf16), ch| {
-                let current = (*utf8, *utf16);
-                *utf8 += ch.len_utf8();
-                *utf16 += ch.len_utf16();
-                Some(current)
-            })
-            .find_map(|(utf8, utf16)| (utf16 >= offset).then_some(utf8))
-            .unwrap_or(self.content.len())
+        offset_from_utf16(&self.content, offset)
     }
 
     fn offset_to_utf16(&self, offset: usize) -> usize {
+        let offset = floor_char_boundary(&self.content, offset);
         self.content[..offset].encode_utf16().count()
     }
 
@@ -484,12 +527,12 @@ impl EntityInputHandler for TextInput {
             self.marked = Some(end - text.len()..end);
         }
         if let Some(selected) = selected {
-            let selected = self.range_from_utf16(&selected);
             let start = self
                 .marked
                 .as_ref()
                 .map_or(self.cursor(), |range| range.start);
-            self.selected = start + selected.start..start + selected.end;
+            self.selected = start + offset_from_utf16(text, selected.start)
+                ..start + offset_from_utf16(text, selected.end);
         }
     }
 
@@ -517,7 +560,7 @@ impl EntityInputHandler for TextInput {
         let bounds = self.last_bounds?;
         let line = self.last_layout.as_ref()?;
         line.index_for_x(point.x - bounds.left())
-            .map(|index| self.offset_to_utf16(index))
+            .map(|index| self.offset_to_utf16(self.content_offset_from_display(index)))
     }
 }
 
@@ -575,7 +618,7 @@ impl Element for TextElement {
         let display = if content.is_empty() {
             input.placeholder.clone()
         } else if input.masked {
-            "*".repeat(content.len()).into()
+            "*".repeat(content.chars().count()).into()
         } else {
             content
         };
@@ -593,7 +636,7 @@ impl Element for TextElement {
             }],
             None,
         );
-        let cursor_x = line.x_for_index(input.cursor());
+        let cursor_x = line.x_for_index(input.display_offset(input.cursor()));
         let (selection, cursor) = if input.selected.is_empty() {
             (
                 None,
@@ -610,11 +653,13 @@ impl Element for TextElement {
                 Some(fill(
                     Bounds::from_corners(
                         point(
-                            bounds.left() + line.x_for_index(input.selected.start),
+                            bounds.left()
+                                + line.x_for_index(input.display_offset(input.selected.start)),
                             bounds.top(),
                         ),
                         point(
-                            bounds.left() + line.x_for_index(input.selected.end),
+                            bounds.left()
+                                + line.x_for_index(input.display_offset(input.selected.end)),
                             bounds.bottom(),
                         ),
                     ),
@@ -662,7 +707,7 @@ impl Element for TextElement {
 impl Render for TextInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .key_context("PeerTextInput")
+            .key_context("GrimoireTextInput")
             .track_focus(&self.focus)
             .cursor(CursorStyle::IBeam)
             .on_action(cx.listener(Self::backspace))
@@ -706,11 +751,14 @@ impl Focusable for TextInput {
 mod tests {
     use gpui::{Modifiers, MouseButton, TestAppContext, point};
 
-    use super::{next_word_boundary, previous_word_boundary, replace_content};
+    use super::{
+        floor_char_boundary, next_word_boundary, offset_from_utf16, previous_word_boundary,
+        replace_content,
+    };
 
     #[gpui::test]
     fn clicking_placeholder_then_backspace_does_not_panic(cx: &mut TestAppContext) {
-        super::init(cx);
+        cx.update(super::init);
         let (input, cx) = cx.add_window_view(|_, cx| super::TextInput::new(cx, "display name"));
         cx.update(|window, app| window.focus(&input.read(app).focus));
         let position = input.read_with(cx, |input, _| {
@@ -725,12 +773,58 @@ mod tests {
         assert_eq!(input.read_with(cx, |input, _| input.cursor()), 0);
     }
 
+    #[gpui::test]
+    fn masked_unicode_click_stays_on_a_character_boundary(cx: &mut TestAppContext) {
+        cx.update(super::init);
+        let (input, cx) = cx.add_window_view(|_, cx| super::TextInput::password(cx, "passphrase"));
+        cx.update(|window, app| window.focus(&input.read(app).focus));
+        cx.simulate_input("é");
+        let position = input.read_with(cx, |input, _| {
+            let bounds = input.last_bounds.expect("input was painted");
+            let line = input.last_layout.as_ref().expect("input was shaped");
+            point(bounds.left() + line.x_for_index(1), bounds.top())
+        });
+
+        cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::default());
+        cx.simulate_keystrokes("backspace");
+
+        assert_eq!(input.read_with(cx, |input, _| input.value()), "");
+    }
+
+    #[gpui::test]
+    fn selection_delete_replacement_and_paste_keep_valid_cursor(cx: &mut TestAppContext) {
+        cx.update(super::init);
+        let (input, cx) = cx.add_window_view(|_, cx| super::TextInput::new(cx, "message"));
+        cx.update(|window, app| window.focus(&input.read(app).focus));
+
+        cx.simulate_input("hello");
+        cx.simulate_keystrokes("ctrl-a backspace");
+        assert_eq!(input.read_with(cx, |input, _| input.value()), "");
+
+        cx.simulate_input("é");
+        cx.simulate_keystrokes("ctrl-a");
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string("a\nb".into()));
+        cx.dispatch_action(super::Paste);
+
+        assert_eq!(input.read_with(cx, |input, _| input.value()), "a b");
+        assert_eq!(input.read_with(cx, |input, _| input.cursor()), 3);
+    }
+
     #[test]
     fn stale_edit_range_is_clamped_after_submit() {
         let (content, cursor) = replace_content("", 0..20, "x");
         assert_eq!(content, "x");
         assert_eq!(cursor, 1);
         assert_eq!(replace_content("é", 1..2, "x").0, "x");
+    }
+
+    #[test]
+    fn cursor_offsets_are_clamped_to_content_boundaries() {
+        assert_eq!(floor_char_boundary("", 12), 0);
+        assert_eq!(floor_char_boundary("é", 1), 0);
+        assert_eq!(floor_char_boundary("é", 12), 2);
+        assert_eq!(offset_from_utf16("é", 1), 2);
+        assert_eq!(offset_from_utf16("🦀", 1), 4);
     }
 
     #[test]

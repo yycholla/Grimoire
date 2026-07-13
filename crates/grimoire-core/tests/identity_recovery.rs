@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use peer_core::{
+use grimoire_core::{
     Command, Event, MembershipChange, MessageId, Node, NodeConfig, TextMessage, restore_identity,
 };
 use tokio::time::timeout;
@@ -180,10 +180,10 @@ async fn recovered_owner_restores_pre_backup_history_from_a_peer() {
         .await
         .unwrap();
 
-    let channel = peer_core::Channel::new(
-        peer_core::ChannelId::from_bytes([62; 32]),
+    let channel = grimoire_core::Channel::new(
+        grimoire_core::ChannelId::from_bytes([62; 32]),
         "recovery",
-        peer_core::ChannelKind::Text,
+        grimoire_core::ChannelKind::Text,
     )
     .unwrap();
     let message = TextMessage::in_channel(

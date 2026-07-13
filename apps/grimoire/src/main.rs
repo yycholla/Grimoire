@@ -5,8 +5,8 @@ use gpui::{
     ParentElement, PathPromptOptions, Render, Styled, Window, WindowBounds, WindowOptions, div,
     prelude::*, px, rgb, rgba, size,
 };
-use peer_audio::{VoiceDeviceConfig, VoiceDeviceNames, available_devices};
-use peer_core::{
+use grimoire_audio::{VoiceDeviceConfig, VoiceDeviceNames, available_devices};
+use grimoire_core::{
     Attachment, Channel, ChannelId, ChannelKind, Command, CommunityInvite, DisplayName,
     MAX_ATTACHMENT_BYTES, MAX_VOICE_PARTICIPANTS, MemberId, MemberRole, MembershipChange,
     MessageId, PeerAddress, TextMessage,
@@ -731,14 +731,16 @@ impl Shell {
         let mut stop_voice = false;
         let mut refresh_speaking = false;
         match update {
-            SessionUpdate::Event(peer_core::Event::Fault(error)) => {
+            SessionUpdate::Event(grimoire_core::Event::Fault(error)) => {
                 self.load_error = Some(error.to_string());
             }
             SessionUpdate::Event(event) => {
-                refresh_speaking = matches!(&event, peer_core::Event::VoiceReceived(_));
+                refresh_speaking = matches!(&event, grimoire_core::Event::VoiceReceived(_));
                 let event_channel = match &event {
-                    peer_core::Event::TextStored(authored) => Some(authored.message().channel_id()),
-                    peer_core::Event::AttachmentStored(authored) => {
+                    grimoire_core::Event::TextStored(authored) => {
+                        Some(authored.message().channel_id())
+                    }
+                    grimoire_core::Event::AttachmentStored(authored) => {
                         Some(authored.attachment().channel_id())
                     }
                     _ => None,
@@ -751,10 +753,10 @@ impl Shell {
                     let previous_access = state.access();
                     let local_voice_left = matches!(
                         &event,
-                        peer_core::Event::VoicePresence {
+                        grimoire_core::Event::VoicePresence {
                             channel,
                             member,
-                            state: peer_core::VoicePresence::Left,
+                            state: grimoire_core::VoicePresence::Left,
                         } if *member == state.local_member()
                             && self.voice.channel() == Some(*channel)
                     );
@@ -1273,7 +1275,7 @@ impl Shell {
                         div()
                             .text_size(px(18.0))
                             .text_color(rgb(GREEN))
-                            .child("grimoire // peer Community"),
+                            .child("Grimoire"),
                     )
                     .children(self.load_error.iter().cloned().map(|error| {
                         div()
@@ -1697,7 +1699,7 @@ impl Shell {
             .px(px(14.0))
             .border_b_1()
             .border_color(rgb(BORDER))
-            .child(div().text_color(rgb(GREEN)).child("grimoire"))
+            .child(div().text_color(rgb(GREEN)).child("Grimoire"))
             .child(div().text_color(rgb(MUTED)).child("//"))
             .child(div().text_color(rgb(BRIGHT)).child("egregore"))
             .child(div().text_color(rgb(MUTED)).child("/"))
@@ -2712,7 +2714,7 @@ fn real_message(message: MessageState, grouped: bool) -> impl IntoElement {
         )
 }
 
-fn member_color(member: peer_core::MemberId) -> u32 {
+fn member_color(member: grimoire_core::MemberId) -> u32 {
     const COLORS: [u32; 4] = [BLUE, GREEN, PURPLE, TEAL];
     let index = member
         .as_bytes()
@@ -2723,13 +2725,13 @@ fn member_color(member: peer_core::MemberId) -> u32 {
     COLORS[index]
 }
 
-fn message_time(id: peer_core::MessageId) -> String {
+fn message_time(id: grimoire_core::MessageId) -> String {
     let millis = message_millis(id);
     let minutes = millis / 60_000;
     format!("{:02}:{:02}", (minutes / 60) % 24, minutes % 60)
 }
 
-fn message_millis(id: peer_core::MessageId) -> u64 {
+fn message_millis(id: grimoire_core::MessageId) -> u64 {
     u64::from_be_bytes(id.as_bytes()[..8].try_into().expect("message id prefix"))
 }
 
@@ -3092,6 +3094,7 @@ fn main() {
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: None,
+                app_id: Some("grimoire".into()),
                 ..Default::default()
             },
             move |_, cx| {

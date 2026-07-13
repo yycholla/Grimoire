@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use iroh::{Endpoint, EndpointAddr, endpoint::presets};
-use peer_core::{
+use grimoire_core::{
     Attachment, Channel, ChannelId, ChannelKind, Command, ConnectionPathKind, DisplayName, Event,
     FaultKind, MemberId, MembershipChange, MessageId, Node, NodeConfig, TextMessage, VoiceFrame,
     VoicePresence, VoiceStreamId,
 };
+use iroh::{Endpoint, EndpointAddr, endpoint::presets};
 
 #[tokio::test]
 async fn encrypted_attachment_is_replicated_and_persisted() {
@@ -1247,7 +1247,7 @@ async fn transport_identity_matches_durable_member_identity() {
         .await
         .unwrap()
         .to_string()
-        .parse::<peer_core::CommunityInvite>()
+        .parse::<grimoire_core::CommunityInvite>()
         .unwrap();
     assert_eq!(invite.community_id(), node.community_id());
     assert_eq!(invite.owner_address().member_id(), member);
@@ -1668,7 +1668,7 @@ async fn connected_member(events: &mut broadcast::Receiver<Event>) -> MemberId {
     member
 }
 
-async fn next_text(events: &mut broadcast::Receiver<Event>) -> peer_core::AuthoredText {
+async fn next_text(events: &mut broadcast::Receiver<Event>) -> grimoire_core::AuthoredText {
     timeout(Duration::from_secs(5), async {
         loop {
             if let Event::TextStored(message) = events.recv().await.unwrap() {
@@ -1680,7 +1680,7 @@ async fn next_text(events: &mut broadcast::Receiver<Event>) -> peer_core::Author
     .unwrap()
 }
 
-async fn next_membership(events: &mut broadcast::Receiver<Event>) -> peer_core::Community {
+async fn next_membership(events: &mut broadcast::Receiver<Event>) -> grimoire_core::Community {
     timeout(Duration::from_secs(5), async {
         loop {
             match events.recv().await.unwrap() {

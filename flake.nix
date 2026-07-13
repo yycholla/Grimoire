@@ -53,11 +53,11 @@
           desktopItem = pkgs.lib.optionalString pkgs.stdenv.isLinux (
             toString (
               pkgs.makeDesktopItem {
-                name = "peer-community";
-                desktopName = "Peer Community";
+                name = "grimoire";
+                desktopName = "Grimoire";
                 genericName = "Peer-to-peer chat";
                 comment = "Private peer-to-peer text, file, and voice communities";
-                exec = "peer-gpui";
+                exec = "grimoire";
                 icon = "internet-chat";
                 categories = [
                   "Network"
@@ -73,10 +73,10 @@
           };
           commonArgs = {
             inherit src;
-            pname = "peer-community";
+            pname = "grimoire";
             strictDeps = true;
             version = "0.1.0";
-            meta.mainProgram = "peer-gpui";
+            meta.mainProgram = "grimoire";
             nativeBuildInputs = [
               pkgs.cmake
               pkgs.pkg-config
@@ -91,12 +91,12 @@
             ++ desktopRuntimeLibraries
             ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.apple-sdk ];
             postInstall = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-              if [ -x "$out/bin/peer-gpui" ]; then
-                wrapProgram "$out/bin/peer-gpui" \
+              if [ -x "$out/bin/grimoire" ]; then
+                wrapProgram "$out/bin/grimoire" \
                   --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath desktopRuntimeLibraries}
               fi
               mkdir -p "$out/share/applications"
-              cp ${desktopItem}/share/applications/peer-community.desktop "$out/share/applications/"
+              cp ${desktopItem}/share/applications/grimoire.desktop "$out/share/applications/"
             '';
           };
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
@@ -120,7 +120,7 @@
             );
             fmt = craneLib.cargoFmt {
               inherit src;
-              pname = "peer-community";
+              pname = "grimoire";
               version = "0.1.0";
             };
             test = craneLib.cargoTest (

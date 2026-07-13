@@ -1,5 +1,5 @@
 [package]
-name = "peer-cli"
+name = "grimoire-cli"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,8 +7,8 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
-peer-audio = { path = "../../crates/peer-audio" }
-peer-core = { path = "../../crates/peer-core" }
+grimoire-audio = { path = "../../crates/grimoire-audio" }
+grimoire-core = { path = "../../crates/grimoire-core" }
 rand.workspace = true
 tokio.workspace = true
 

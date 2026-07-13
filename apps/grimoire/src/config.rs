@@ -19,14 +19,14 @@ pub struct AppConfig {
 pub fn default_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("peer-community")
+        .join("grimoire")
         .join("config.json")
 }
 
 pub fn default_data_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("peer-community")
+        .join("grimoire")
         .join("community")
 }
 

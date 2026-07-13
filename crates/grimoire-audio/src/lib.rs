@@ -13,8 +13,8 @@ use cpal::{
     SampleFormat, SupportedStreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
+use grimoire_core::{ChannelId, Command, Event, Node, VoiceFrame, VoiceStreamId};
 use opus::{Application, Bitrate, Channels, Decoder, Encoder};
-use peer_core::{ChannelId, Command, Event, Node, VoiceFrame, VoiceStreamId};
 use thiserror::Error;
 use tokio::{
     sync::{mpsc as tokio_mpsc, oneshot, watch},
@@ -304,7 +304,7 @@ impl VoiceSession {
         let encoder = VoiceEncoder::new()?;
         node.execute(Command::SetVoicePresence {
             channel: channel_id,
-            state: peer_core::VoicePresence::Joined,
+            state: grimoire_core::VoicePresence::Joined,
         })
         .await
         .map_err(AudioError::from)?;
@@ -414,7 +414,7 @@ async fn run_session(
                     let Some(muted) = muted else { break };
                     node.execute(Command::SetVoicePresence {
                         channel: channel_id,
-                        state: peer_core::VoicePresence::Muted(muted),
+                        state: grimoire_core::VoicePresence::Muted(muted),
                     })
                     .await
                     .map_err(AudioError::from)?;
@@ -453,7 +453,7 @@ async fn run_session(
     let _ = node
         .execute(Command::SetVoicePresence {
             channel: channel_id,
-            state: peer_core::VoicePresence::Left,
+            state: grimoire_core::VoicePresence::Left,
         })
         .await;
     result
@@ -673,7 +673,7 @@ fn supported_f32_config(config: cpal::SupportedStreamConfigRange) -> Option<Supp
 
 #[cfg(test)]
 mod tests {
-    use peer_core::{ChannelId, VoiceFrame, VoiceStreamId};
+    use grimoire_core::{ChannelId, VoiceFrame, VoiceStreamId};
 
     use super::{
         AudioError, AudioStreamId, FRAME_SAMPLES, PcmFrame, VoiceDecoder, VoiceEncoder,

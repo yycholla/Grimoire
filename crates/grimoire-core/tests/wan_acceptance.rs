@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use peer_core::{
+use grimoire_core::{
     Attachment, ChannelId, Command, ConnectionPathKind, Event, MembershipChange, MessageId, Node,
     NodeConfig, TextMessage, VoiceFrame, VoicePresence, VoiceStreamId,
 };

@@ -1,4 +1,4 @@
-use peer_core::{
+use grimoire_core::{
     Attachment, Channel, ChannelId, ChannelKind, Command, FaultKind, MembershipChange, MessageId,
     Node, NodeConfig, TextMessage,
 };

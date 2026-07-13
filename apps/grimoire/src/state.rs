@@ -5,8 +5,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use peer_audio::{VoiceDeviceConfig, VoiceSession};
-use peer_core::{
+use grimoire_audio::{VoiceDeviceConfig, VoiceSession};
+use grimoire_core::{
     ChannelId, ChannelKind, Command, CommunityInvite, ConnectionPathKind, Event,
     MAX_VOICE_PARTICIPANTS, MemberId, MemberRole, MessageId, Node, NodeConfig, PeerAddress,
     PeerDiagnostic, Snapshot, VoicePresence, restore_identity,
@@ -1155,7 +1155,7 @@ fn short_member(member: MemberId) -> String {
 mod tests {
     use std::time::Duration;
 
-    use peer_core::{
+    use grimoire_core::{
         Attachment, Channel, ChannelId, ChannelKind, Command, DisplayName, MemberId, MessageId,
         Node, NodeConfig, TextMessage,
     };
@@ -1207,15 +1207,15 @@ mod tests {
     fn connection_labels_describe_selected_path() {
         assert_eq!(connection_label(None), "OFFLINE");
         assert_eq!(
-            connection_label(Some((peer_core::ConnectionPathKind::Direct, 42))),
+            connection_label(Some((grimoire_core::ConnectionPathKind::Direct, 42))),
             "DIRECT 42ms"
         );
         assert_eq!(
-            connection_label(Some((peer_core::ConnectionPathKind::Relay, 180))),
+            connection_label(Some((grimoire_core::ConnectionPathKind::Relay, 180))),
             "RELAY 180ms"
         );
         assert_eq!(
-            connection_label(Some((peer_core::ConnectionPathKind::Custom, 90))),
+            connection_label(Some((grimoire_core::ConnectionPathKind::Custom, 90))),
             "CUSTOM 90ms"
         );
     }
@@ -1315,21 +1315,21 @@ mod tests {
         let node = Node::open(NodeConfig::new(directory.path())).await.unwrap();
         let snapshot = node.snapshot().await.unwrap();
         let member = node.member_id();
-        let pending = peer_core::MemberId::from_bytes([8; 32]);
+        let pending = grimoire_core::MemberId::from_bytes([8; 32]);
         let channel = ChannelId::GENERAL;
         let mut state = CommunityState::from_snapshot(&snapshot, member);
 
-        state.apply(peer_core::Event::PeerConnected(pending));
-        state.apply(peer_core::Event::PeerConnected(member));
-        state.apply(peer_core::Event::VoicePresence {
+        state.apply(grimoire_core::Event::PeerConnected(pending));
+        state.apply(grimoire_core::Event::PeerConnected(member));
+        state.apply(grimoire_core::Event::VoicePresence {
             channel,
             member,
-            state: peer_core::VoicePresence::Joined,
+            state: grimoire_core::VoicePresence::Joined,
         });
-        state.apply(peer_core::Event::VoicePresence {
+        state.apply(grimoire_core::Event::VoicePresence {
             channel,
             member,
-            state: peer_core::VoicePresence::Muted(true),
+            state: grimoire_core::VoicePresence::Muted(true),
         });
         state.replace_snapshot(&snapshot);
 
@@ -1367,9 +1367,9 @@ mod tests {
         let names = (0..2)
             .map(
                 |_| match session.recv_timeout(Duration::from_secs(2)).unwrap() {
-                    SessionUpdate::Event(peer_core::Event::DisplayNameChanged { name, .. }) => {
-                        name.as_str().to_owned()
-                    }
+                    SessionUpdate::Event(grimoire_core::Event::DisplayNameChanged {
+                        name, ..
+                    }) => name.as_str().to_owned(),
                     update => panic!("unexpected update: {update:?}"),
                 },
             )

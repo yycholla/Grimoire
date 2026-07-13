@@ -28,7 +28,7 @@ Use this checklist for a release candidate. It complements the automated suite; 
 5. Optionally confirm the public relay independently:
 
    ```console
-   cargo test -p peer-core --test wan_acceptance -- --ignored --nocapture
+   cargo test -p grimoire-core --test wan_acceptance -- --ignored --nocapture
    ```
 
 ## Pass record

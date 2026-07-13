@@ -1,5 +1,5 @@
 [package]
-name = "peer-audio"
+name = "grimoire-audio"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,7 +7,7 @@ rust-version.workspace = true
 [dependencies]
 cpal.workspace = true
 opus.workspace = true
-peer-core = { path = "../peer-core" }
+grimoire-core = { path = "../grimoire-core" }
 rand.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

@@ -69,6 +69,6 @@ jobs:
         with:
           name: grimoire-windows-x86_64
           path: |
-            target/release/peer-gpui.exe
-            target/release/peer-cli.exe
+            target/release/grimoire.exe
+            target/release/grimoire-cli.exe
           if-no-files-found: error
