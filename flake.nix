@@ -75,7 +75,7 @@
             inherit src;
             pname = "grimoire";
             strictDeps = true;
-            version = "0.1.0";
+            version = "0.0.1";
             meta.mainProgram = "grimoire";
             nativeBuildInputs = [
               pkgs.cmake
@@ -121,7 +121,7 @@
             fmt = craneLib.cargoFmt {
               inherit src;
               pname = "grimoire";
-              version = "0.1.0";
+              version = "0.0.1";
             };
             test = craneLib.cargoNextest (
               commonArgs
