@@ -3450,7 +3450,7 @@ checksum = "12101ecc8225ea6d675bc70263074eab6169079621c2186fe0c66590b2df9681"
 
 [[package]]
 name = "grimoire"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -3466,7 +3466,7 @@ dependencies = [
 
 [[package]]
 name = "grimoire-audio"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "cpal",
  "grimoire-core",
@@ -3478,7 +3478,7 @@ dependencies = [
 
 [[package]]
 name = "grimoire-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "argon2",
  "blake3",
