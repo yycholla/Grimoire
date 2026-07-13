@@ -1201,6 +1201,14 @@ async fn voice_presence_stops_at_membership_and_disconnect_boundaries() {
         .await
         .unwrap();
     next_membership(&mut member_events).await;
+    assert_eq!(
+        next_voice_presence(&mut member_events).await,
+        (
+            ChannelId::VOICE_ROOM,
+            owner.member_id(),
+            VoicePresence::Left,
+        )
+    );
     owner
         .execute(Command::SetVoicePresence {
             channel: ChannelId::VOICE_ROOM,
