@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+store_path=$(cat "$root/grimoire.store-path")
+
+if [ ! -x "$store_path/bin/grimoire" ]; then
+    if ! command -v nix-store >/dev/null 2>&1; then
+        echo "This Grimoire Linux artifact requires Nix." >&2
+        exit 1
+    fi
+    nix-store --import < "$root/grimoire.closure" >/dev/null
+fi
+
+exec "$store_path/bin/grimoire" "$@"

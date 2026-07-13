@@ -79,20 +79,21 @@ jobs:
         with:
           use-flakehub: 'false'
           diagnostic-endpoint: ''
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        if: runner.os == 'Linux'
-      - name: Build release
-        if: runner.os == 'Linux'
-        run: nix develop --command cargo build --workspace --release
       - name: Build Nix package
-        if: runner.os != 'Linux'
         run: nix build --out-link result --print-build-logs ".#packages.${{ matrix.system }}.default"
-      - name: Package Linux binaries
+      - name: Package Linux closure
         if: runner.os == 'Linux'
-        run: tar -czf "grimoire-${{ matrix.system }}.tar.gz" -C target/release grimoire grimoire-cli
+        run: |
+          mkdir dist
+          cp packaging/nixos/grimoire dist/grimoire
+          readlink -f result > dist/grimoire.store-path
+          mapfile -t closure_paths < <(nix-store -qR result)
+          nix-store --export "${closure_paths[@]}" > dist/grimoire.closure
+          dist/grimoire --help > /dev/null
+          tar -czf "grimoire-${{ matrix.system }}.tar.gz" -C dist grimoire grimoire.store-path grimoire.closure
       - name: Package Nix binaries
         if: runner.os != 'Linux'
-        run: tar -czf "grimoire-${{ matrix.system }}.tar.gz" -C result/bin grimoire grimoire-cli
+        run: tar -czf "grimoire-${{ matrix.system }}.tar.gz" -C result/bin grimoire
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: grimoire-${{ matrix.system }}
@@ -123,7 +124,5 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: grimoire-windows-x86_64
-          path: |
-            target/release/grimoire.exe
-            target/release/grimoire-cli.exe
+          path: target/release/grimoire.exe
           if-no-files-found: error

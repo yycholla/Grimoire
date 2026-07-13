@@ -36,8 +36,8 @@ The environment provides Rust 1.97, CMake, Protobuf, pkg-config, ALSA, Opus, and
 
 GitHub Actions verifies Nix builds on Linux x86_64, Linux ARM64, and Apple Silicon
 macOS. Windows x86_64 uses the same pinned Rust 1.97.0 toolchain and builds the
-native binaries directly. These are verification builds; portable, signed
-release bundles are a separate packaging milestone.
+native binary directly. Successful runs upload unsigned test artifacts for each
+platform; signed releases are a separate packaging milestone.
 
 ## Install on Linux
 
@@ -54,7 +54,12 @@ nix profile install path:.
 grimoire
 ```
 
-The package installs `grimoire`, the `grimoire-cli` diagnostics harness, and a **Grimoire** desktop-menu entry. Updates remain controlled by Nix; the application does not self-update.
+Downloaded Linux CI artifacts are NixOS-native. Keep the three extracted files
+together; the `grimoire` launcher imports its bundled Nix closure on first run.
+
+The package installs `grimoire` and a **Grimoire** desktop-menu entry. The same
+binary exposes headless and diagnostic subcommands through `grimoire --help`.
+Updates remain controlled by Nix; the application does not self-update.
 
 ## Run the checks
 
@@ -158,13 +163,13 @@ manually:
 2. Start the headless peer with a new persistent data directory:
 
    ```console
-   cargo run -p grimoire-cli -- availability --data-dir "$HOME/.local/share/grimoire/availability" --invite '<community-invite>'
+   cargo run -p grimoire -- availability --data-dir "$HOME/.local/share/grimoire/availability" --invite '<community-invite>'
    ```
 
    To prohibit direct paths, put the global flag before the subcommand:
 
    ```console
-   cargo run -p grimoire-cli -- --relay-only availability --data-dir "$HOME/.local/share/grimoire/availability" --invite '<community-invite>'
+   cargo run -p grimoire -- --relay-only availability --data-dir "$HOME/.local/share/grimoire/availability" --invite '<community-invite>'
    ```
 
 3. The command prints its stable identity and current Iroh address, connects to
@@ -180,25 +185,25 @@ the routing identifiers, timing, sizes, and peer addresses required to store
 and transport ciphertext. The machine running it is therefore trusted for
 availability and metadata exposure, not for Community content.
 
-## Run the temporary Grimoire harness
+## Use Grimoire from the terminal
 
 Inspect the available commands:
 
 ```console
-cargo run -p grimoire-cli -- --help
+cargo run -p grimoire -- --help
 ```
 
 Start a peer and print its Iroh address:
 
 ```console
-cargo run -p grimoire-cli -- serve --data-dir /tmp/grimoire-a
+cargo run -p grimoire -- serve --data-dir /tmp/grimoire-a
 ```
 
 Inspect the selected direct or relay path and its RTT after connecting an existing community data directory:
 
 ```console
-cargo run -p grimoire-cli -- diagnose --data-dir /tmp/grimoire-a --address '<peer-address>'
-cargo run -p grimoire-cli -- --relay-only diagnose --data-dir /tmp/grimoire-a --address '<peer-address>'
+cargo run -p grimoire -- diagnose --data-dir /tmp/grimoire-a --address '<peer-address>'
+cargo run -p grimoire -- --relay-only diagnose --data-dir /tmp/grimoire-a --address '<peer-address>'
 ```
 
 The selected line reports `kind=Direct` or `kind=Relay`, `selected=true`, and `rtt_ms`. The forced public-relay smoke test is intentionally ignored by the offline test suite and can be run explicitly:
@@ -207,8 +212,7 @@ The selected line reports `kind=Direct` or `kind=Relay`, `selected=true`, and `r
 cargo test -p grimoire-core --test wan_acceptance -- --ignored --nocapture
 ```
 
-The current CLI is a transport, audio, and headless availability harness, not
-the eventual application UI. Normal participant invite admission remains in the
-desktop client.
+The CLI subcommands cover transport diagnostics, audio testing, and headless
+availability. Normal participant invite admission remains in the desktop UI.
 
 Before calling a build accepted, run the [four-peer Linux acceptance checklist](docs/acceptance.md) across two real internet connections.

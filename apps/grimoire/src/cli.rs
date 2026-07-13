@@ -5,8 +5,20 @@ use clap::{Parser, Subcommand};
 use grimoire_audio::VoiceSession;
 use grimoire_core::{Command, CommunityInvite, Event, MessageId, Node, NodeConfig, TextMessage};
 
+use super::member_hex;
+
+const COMMANDS: [&str; 5] = ["serve", "send", "voice", "diagnose", "availability"];
+
+pub(crate) fn requested(args: &[String]) -> bool {
+    let command = args
+        .iter()
+        .find(|arg| arg.as_str() != "--relay-only")
+        .map(String::as_str);
+    command.is_some_and(|arg| matches!(arg, "-h" | "--help") || COMMANDS.contains(&arg))
+}
+
 #[derive(Debug, Parser)]
-#[command(about = "Temporary Grimoire connectivity harness")]
+#[command(about = "Grimoire command-line tools")]
 struct Args {
     #[arg(
         long,
@@ -56,7 +68,7 @@ enum CliCommand {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+pub(crate) async fn run() -> anyhow::Result<()> {
     let args = Args::parse();
     match args.command {
         CliCommand::Serve { data_dir } => serve(data_dir, args.relay_only).await,
@@ -123,14 +135,6 @@ async fn availability(
     shutdown.await?;
     node.shutdown().await?;
     Ok(())
-}
-
-fn member_hex(member: grimoire_core::MemberId) -> String {
-    member
-        .as_bytes()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 fn node_config(data_dir: PathBuf, relay_only: bool) -> NodeConfig {
@@ -232,4 +236,33 @@ async fn diagnose(
     }
     node.shutdown().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::requested;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn requested_routes_commands_but_not_gui_launches() {
+        for command in ["serve", "send", "voice", "diagnose", "availability"] {
+            assert!(requested(&args(&[command])));
+        }
+        assert!(requested(&args(&["--relay-only", "diagnose"])));
+        assert!(requested(&args(&["diagnose", "--relay-only"])));
+        assert!(requested(&args(&["--help"])));
+
+        for launch in [
+            &[][..],
+            &["--create", "/tmp/community"][..],
+            &["--join", "/tmp/community", "invite"][..],
+            &["--preview"][..],
+            &["/tmp/community"][..],
+        ] {
+            assert!(!requested(&args(launch)));
+        }
+    }
 }

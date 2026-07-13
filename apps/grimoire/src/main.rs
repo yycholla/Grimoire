@@ -18,6 +18,7 @@ use state::{
     join_new, open_existing, recover, voice_room_available,
 };
 
+mod cli;
 mod config;
 mod state;
 mod text_input;
@@ -3020,11 +3021,15 @@ const fn connectivity_mode(relay_only: bool) -> ConnectivityMode {
     }
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if cli::requested(&args) {
+        return cli::run();
+    }
+
     let config_path = config::default_path();
     let mut app_config = config::load(&config_path);
     let connectivity = connectivity_mode(app_config.relay_only);
-    let args = std::env::args().skip(1).collect::<Vec<_>>();
     let (community_paths, opened, stored_invite, preview) = match args.as_slice() {
         [flag, path] if flag == "--create" => {
             let path = PathBuf::from(path);
@@ -3113,6 +3118,7 @@ fn main() {
         .expect("open GPUI window");
         cx.activate(true);
     });
+    Ok(())
 }
 
 #[cfg(test)]

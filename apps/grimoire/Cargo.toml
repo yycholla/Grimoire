@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+clap.workspace = true
 dirs.workspace = true
 gpui.workspace = true
 grimoire-audio = { path = "../../crates/grimoire-audio" }

@@ -3452,6 +3452,8 @@ checksum = "12101ecc8225ea6d675bc70263074eab6169079621c2186fe0c66590b2df9681"
 name = "grimoire"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "clap",
  "dirs 6.0.0",
  "gpui",
  "grimoire-audio",
@@ -3471,18 +3473,6 @@ dependencies = [
  "opus",
  "rand 0.9.5",
  "thiserror 2.0.18",
- "tokio",
-]
-
-[[package]]
-name = "grimoire-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "grimoire-audio",
- "grimoire-core",
- "rand 0.9.5",
  "tokio",
 ]
 

@@ -3,7 +3,6 @@ members = [
   "apps/grimoire",
   "crates/grimoire-audio",
   "crates/grimoire-core",
-  "tools/grimoire-cli",
 ]
 resolver = "3"
 
