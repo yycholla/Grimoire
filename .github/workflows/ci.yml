@@ -21,19 +21,25 @@ jobs:
         include:
           - runner: ubuntu-24.04
             system: x86_64-linux
+            nix_options: ''
           - runner: ubuntu-24.04-arm
             system: aarch64-linux
+            nix_options: --max-jobs 1 --cores 2
           - runner: macos-15
             system: aarch64-darwin
+            nix_options: ''
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - name: Install Metal toolchain
+        if: runner.os == 'macOS'
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Check and build
         shell: bash
         run: |
-          nix flake check --print-build-logs
-          nix build --no-link --print-build-logs ".#packages.${{ matrix.system }}.default"
+          nix flake check --print-build-logs ${{ matrix.nix_options }}
+          nix build --no-link --print-build-logs ${{ matrix.nix_options }} ".#packages.${{ matrix.system }}.default"
 
   windows:
     name: Windows (x86_64)
