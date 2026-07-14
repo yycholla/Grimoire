@@ -870,7 +870,6 @@ impl Shell {
             }
             SessionUpdate::Metrics(snapshot) => {
                 self.debug.apply_metrics(snapshot);
-                cx.notify();
             }
         }
         if stop_voice {

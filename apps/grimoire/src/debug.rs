@@ -11,8 +11,6 @@ pub const HISTORY_LEN: usize = 120; // ~2 min at 1 s cadence
 pub const EVENT_LOG_LEN: usize = 500;
 pub const SPARKLINE_LEN: usize = 60; // samples shown in expanded peer rows
 
-// Fields are populated now but only read by debug rendering (tasks 7-9).
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct DebugEvent {
     pub at: std::time::Instant,
@@ -23,7 +21,6 @@ pub struct DebugEvent {
 #[derive(Default)]
 pub struct DebugState {
     pub current: Option<MetricsSnapshot>,
-    pub previous: Option<MetricsSnapshot>,
     pub db_bytes_history: VecDeque<u64>,
     pub send_rate_history: VecDeque<u64>,
     pub recv_rate_history: VecDeque<u64>,
@@ -40,8 +37,7 @@ fn push_capped<T>(buffer: &mut VecDeque<T>, value: T, cap: usize) {
 
 impl DebugState {
     pub fn apply_metrics(&mut self, snapshot: MetricsSnapshot) {
-        let previous = self.current.replace(snapshot);
-        let (send_delta, recv_delta) = match previous {
+        let (send_delta, recv_delta) = match self.current.replace(snapshot) {
             Some(prev) => (
                 snapshot.messages_sent.saturating_sub(prev.messages_sent),
                 snapshot
@@ -50,7 +46,6 @@ impl DebugState {
             ),
             None => (0, 0),
         };
-        self.previous = previous;
         push_capped(&mut self.db_bytes_history, snapshot.db_bytes, HISTORY_LEN);
         push_capped(&mut self.send_rate_history, send_delta, HISTORY_LEN);
         push_capped(&mut self.recv_rate_history, recv_delta, HISTORY_LEN);
@@ -375,6 +370,23 @@ fn stat(label: &'static str, value: String) -> impl IntoElement {
         .child(div().text_color(rgb(crate::TEXT)).child(value))
 }
 
+/// A stat row whose value turns red once the count is nonzero, so failure
+/// counters stand out.
+fn stat_count(label: &'static str, value: u64) -> impl IntoElement {
+    let color = if value > 0 { crate::RED } else { crate::TEXT };
+    div()
+        .flex()
+        .gap(px(8.0))
+        .py(px(2.0))
+        .child(
+            div()
+                .w(px(180.0))
+                .text_color(rgb(crate::MUTED))
+                .child(label),
+        )
+        .child(div().text_color(rgb(color)).child(value.to_string()))
+}
+
 fn placeholder(label: &'static str) -> impl IntoElement {
     div().p(px(14.0)).text_color(rgb(crate::MUTED)).child(label)
 }
@@ -490,7 +502,7 @@ fn connections_page(shell: &mut Shell, cx: &mut Context<Shell>) -> AnyElement {
                 .child(
                     div()
                         .id(SharedString::from(format!(
-                            "conn-bar-{}",
+                            "debug-conn-bar-{}",
                             short_member(&member)
                         )))
                         .w(px(26.0))
@@ -565,7 +577,7 @@ fn connections_page(shell: &mut Shell, cx: &mut Context<Shell>) -> AnyElement {
                 .child(
                     div()
                         .id(SharedString::from(format!(
-                            "conn-row-{}",
+                            "debug-conn-row-{}",
                             short_member(&member)
                         )))
                         .cursor_pointer()
@@ -650,10 +662,7 @@ fn crypto_page(shell: &Shell) -> impl IntoElement {
             "messages received",
             snapshot.messages_received.to_string(),
         ))
-        .child(stat(
-            "decrypt failures",
-            snapshot.decrypt_failures.to_string(),
-        ))
+        .child(stat_count("decrypt failures", snapshot.decrypt_failures))
         .child(
             div()
                 .text_color(rgb(crate::MUTED))
@@ -684,10 +693,7 @@ fn audio_page(shell: &Shell) -> impl IntoElement {
             "frames received",
             snapshot.voice_frames_received.to_string(),
         ))
-        .child(stat(
-            "frame failures",
-            snapshot.voice_frame_failures.to_string(),
-        ))
+        .child(stat_count("frame failures", snapshot.voice_frame_failures))
 }
 
 struct EventRow {
