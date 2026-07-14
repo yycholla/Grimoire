@@ -20,6 +20,7 @@ use state::{
 
 mod cli;
 mod config;
+mod debug;
 mod state;
 mod text_input;
 
@@ -104,6 +105,7 @@ struct Shell {
     switching_community: bool,
     audio_devices: VoiceDeviceNames,
     load_error: Option<String>,
+    debug: debug::DebugState,
 }
 
 impl Shell {
@@ -167,6 +169,7 @@ impl Shell {
                 switching_community: false,
                 audio_devices: VoiceDeviceNames::default(),
                 load_error: None,
+                debug: debug::DebugState::default(),
             },
             Ok(None) => Self {
                 config: config.clone(),
@@ -196,6 +199,7 @@ impl Shell {
                 switching_community: false,
                 audio_devices: VoiceDeviceNames::default(),
                 load_error: None,
+                debug: debug::DebugState::default(),
             },
             Err(error) => Self {
                 config,
@@ -225,6 +229,7 @@ impl Shell {
                 switching_community: false,
                 audio_devices: VoiceDeviceNames::default(),
                 load_error: Some(error),
+                debug: debug::DebugState::default(),
             },
         };
         if let Some(path) = shell.current_path.clone()
@@ -733,9 +738,15 @@ impl Shell {
         let mut refresh_speaking = false;
         match update {
             SessionUpdate::Event(grimoire_core::Event::Fault(error)) => {
+                self.debug.push_event(
+                    debug::event_summary(&grimoire_core::Event::Fault(error.clone())),
+                    error.to_string(),
+                );
                 self.load_error = Some(error.to_string());
             }
             SessionUpdate::Event(event) => {
+                self.debug
+                    .push_event(debug::event_summary(&event), format!("{event:?}"));
                 refresh_speaking = matches!(&event, grimoire_core::Event::VoiceReceived(_));
                 let event_channel = match &event {
                     grimoire_core::Event::TextStored(authored) => {
@@ -796,7 +807,11 @@ impl Shell {
                         && state.access() == CommunityAccess::Removed;
                 }
             }
-            SessionUpdate::CommandFailed(error) => self.load_error = Some(error),
+            SessionUpdate::CommandFailed(error) => {
+                self.debug
+                    .push_event("command failed".to_string(), error.clone());
+                self.load_error = Some(error);
+            }
             SessionUpdate::InviteReady(invite) => {
                 cx.write_to_clipboard(ClipboardItem::new_string(invite.clone()));
                 self.invite = Some(invite);
@@ -823,11 +838,21 @@ impl Shell {
                 {
                     state.apply_diagnostics(&peers);
                 }
+                for peer in &peers {
+                    if let Some(path) = peer.paths().iter().find(|path| path.is_selected()) {
+                        self.debug
+                            .push_rtt(peer.member(), path.rtt().as_millis() as u64);
+                    }
+                }
             }
-            SessionUpdate::Voice(update) => self.apply_voice_update(source, update),
-            // TODO(task5): handle metrics
+            SessionUpdate::Voice(update) => {
+                self.debug
+                    .push_event(format!("voice: {update:?}"), String::new());
+                self.apply_voice_update(source, update);
+            }
             SessionUpdate::Metrics(snapshot) => {
-                let _ = snapshot;
+                self.debug.apply_metrics(snapshot);
+                cx.notify();
             }
         }
         if stop_voice {
