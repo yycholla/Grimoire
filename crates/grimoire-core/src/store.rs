@@ -18,8 +18,6 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct Store {
     database: turso::Database,
-    // Read by `db_path`, which a follow-up task wires into the debug hub.
-    #[allow(dead_code)]
     path: PathBuf,
     membership_mutation: tokio::sync::Mutex<()>,
     channel_mutation: tokio::sync::Mutex<()>,
@@ -28,9 +26,8 @@ pub(crate) struct Store {
 
 /// Cheap row counts for a few key tables, used by the debug hub.
 ///
-/// Constructed by `Store::debug_counts`; a follow-up task assembles it into
-/// `MetricsSnapshot`.
-#[allow(dead_code)]
+/// Constructed by `Store::debug_counts` and assembled into `MetricsSnapshot`
+/// by `Node::metrics_snapshot`.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct StoreCounts {
     pub messages: u64,
@@ -244,15 +241,12 @@ impl Store {
         Ok(store)
     }
 
-    // Consumed by a follow-up task that assembles `MetricsSnapshot`.
-    #[allow(dead_code)]
     pub fn db_path(&self) -> &Path {
         &self.path
     }
 
     /// Counts messages from the `encrypted_messages` table (the live
     /// encrypted store), deliberately not the legacy `messages` table.
-    #[allow(dead_code)]
     pub async fn debug_counts(&self) -> Result<StoreCounts, NodeError> {
         let connection = self.database.connect()?;
         let mut rows = connection
@@ -507,7 +501,9 @@ impl Store {
         Ok(community)
     }
 
-    pub async fn next_membership_revision(&self) -> Result<u64, NodeError> {
+    /// Cheap `MAX(revision)` lookup (0 when no changes are recorded), unlike
+    /// `active_membership_head`, which replays the full signed history.
+    pub async fn latest_membership_revision(&self) -> Result<u64, NodeError> {
         let connection = self.database.connect()?;
         let mut rows = connection
             .query(
@@ -521,8 +517,13 @@ impl Store {
             .ok_or_else(|| NodeError::protocol("membership revision query returned no row"))?
             .get(0)?;
         u64::try_from(revision)
-            .ok()
-            .and_then(|revision| revision.checked_add(1))
+            .map_err(|_| NodeError::protocol("membership revision exceeds storage range"))
+    }
+
+    pub async fn next_membership_revision(&self) -> Result<u64, NodeError> {
+        self.latest_membership_revision()
+            .await?
+            .checked_add(1)
             .ok_or_else(|| NodeError::protocol("membership revision overflow"))
     }
 

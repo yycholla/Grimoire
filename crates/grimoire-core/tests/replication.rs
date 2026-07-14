@@ -337,6 +337,15 @@ async fn message_is_persisted_and_replicated_between_two_nodes() {
         &message
     );
 
+    let snapshot = second.metrics_snapshot().await;
+    assert!(snapshot.messages_received >= 1);
+    assert!(snapshot.channels_total >= 1);
+    assert!(snapshot.members_total >= 1);
+    assert!(snapshot.db_bytes > 0);
+    assert!(snapshot.membership_revision >= 1);
+    let snapshot = first.metrics_snapshot().await;
+    assert!(snapshot.messages_sent >= 1);
+
     second.shutdown().await.unwrap();
     let reopened = Node::open(NodeConfig::new(second_dir.path()))
         .await
