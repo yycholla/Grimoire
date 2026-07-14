@@ -111,6 +111,7 @@ struct Shell {
     debug_open: bool,
     debug_page: debug::DebugPage,
     expanded_peer: Option<MemberId>,
+    expanded_event: Option<usize>,
 }
 
 impl Shell {
@@ -178,6 +179,7 @@ impl Shell {
                 debug_open: false,
                 debug_page: debug::DebugPage::default(),
                 expanded_peer: None,
+                expanded_event: None,
             },
             Ok(None) => Self {
                 config: config.clone(),
@@ -211,6 +213,7 @@ impl Shell {
                 debug_open: false,
                 debug_page: debug::DebugPage::default(),
                 expanded_peer: None,
+                expanded_event: None,
             },
             Err(error) => Self {
                 config,
@@ -244,6 +247,7 @@ impl Shell {
                 debug_open: false,
                 debug_page: debug::DebugPage::default(),
                 expanded_peer: None,
+                expanded_event: None,
             },
         };
         if let Some(path) = shell.current_path.clone()

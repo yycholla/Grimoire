@@ -690,8 +690,95 @@ fn audio_page(shell: &Shell) -> impl IntoElement {
         ))
 }
 
-fn events_page(_shell: &mut Shell, _cx: &mut Context<Shell>) -> impl IntoElement {
-    placeholder("events — task 9")
+struct EventRow {
+    index: usize,
+    age_secs: u64,
+    summary: String,
+    detail: String,
+    expanded: bool,
+}
+
+fn events_page(shell: &mut Shell, cx: &mut Context<Shell>) -> AnyElement {
+    if shell.debug.events.is_empty() {
+        return placeholder("no events yet").into_any_element();
+    }
+
+    let expanded_event = shell.expanded_event;
+
+    // Extract everything owned up front so element listeners (which need
+    // &mut Shell via cx) don't collide with borrows of `shell`.
+    let rows: Vec<EventRow> = shell
+        .debug
+        .events
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(index, event)| EventRow {
+            index,
+            age_secs: event.at.elapsed().as_secs(),
+            summary: event.summary.clone(),
+            detail: event.detail.clone(),
+            expanded: expanded_event == Some(index),
+        })
+        .collect();
+
+    div()
+        .id("debug-events")
+        .flex()
+        .flex_col()
+        .flex_1()
+        .p(px(14.0))
+        .gap(px(2.0))
+        .overflow_y_scroll()
+        .children(rows.into_iter().map(|row| {
+            let index = row.index;
+            let container = div()
+                .id(SharedString::from(format!("debug-event-{index}")))
+                .flex()
+                .flex_col()
+                .p(px(6.0))
+                .border_1()
+                .border_color(rgb(if row.expanded {
+                    crate::GREEN
+                } else {
+                    crate::BORDER
+                }))
+                .rounded(px(4.0))
+                .cursor_pointer()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.expanded_event = if this.expanded_event == Some(index) {
+                        None
+                    } else {
+                        Some(index)
+                    };
+                    cx.notify();
+                }))
+                .child(
+                    div()
+                        .flex()
+                        .child(
+                            div()
+                                .w(px(50.0))
+                                .text_color(rgb(crate::MUTED))
+                                .child(format!("{}s", row.age_secs)),
+                        )
+                        .child(div().text_color(rgb(crate::TEXT)).child(row.summary)),
+                );
+            if row.expanded && !row.detail.is_empty() {
+                container
+                    .child(
+                        div()
+                            .mt(px(4.0))
+                            .text_size(px(11.0))
+                            .text_color(rgb(crate::SECONDARY))
+                            .child(row.detail),
+                    )
+                    .into_any_element()
+            } else {
+                container.into_any_element()
+            }
+        }))
+        .into_any_element()
 }
 
 #[cfg(test)]
