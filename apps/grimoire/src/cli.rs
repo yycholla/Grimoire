@@ -105,7 +105,8 @@ async fn availability(
     println!("identity={}", member_hex(node.member_id()));
     println!("address={}", node.address());
     println!(
-        "status=waiting for owner admission; once admitted, retaining encrypted Community ciphertext without content keys"
+        "status=waiting for owner to run /admit-availability {}; once admitted, retaining encrypted Community ciphertext without content keys",
+        member_hex(node.member_id())
     );
 
     let shutdown = tokio::signal::ctrl_c();

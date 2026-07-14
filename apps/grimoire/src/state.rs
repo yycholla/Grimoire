@@ -314,6 +314,7 @@ pub struct MemberState {
 pub enum CommunityAccess {
     Waiting,
     Active,
+    Availability,
     Removed,
 }
 
@@ -339,10 +340,7 @@ pub struct CommunityState {
 
 impl CommunityState {
     pub fn from_snapshot(snapshot: &Snapshot, local_member: MemberId) -> Self {
-        let access = initial_access(
-            !snapshot.channels().is_empty(),
-            snapshot.members().contains(&local_member),
-        );
+        let access = initial_access(!snapshot.channels().is_empty(), snapshot.role(local_member));
         let channels = snapshot
             .channels()
             .iter()
@@ -432,10 +430,7 @@ impl CommunityState {
         let connection = self.connection;
         let diagnostics = std::mem::take(&mut self.diagnostics);
         *self = Self::from_snapshot(snapshot, self.local_member);
-        self.access = next_access(
-            previous_access,
-            snapshot.members().contains(&self.local_member),
-        );
+        self.access = next_access(previous_access, snapshot.role(self.local_member));
         self.online = online;
         self.online
             .retain(|member| snapshot.members().contains(member));
@@ -572,7 +567,7 @@ impl CommunityState {
                         role: community.role(member).unwrap_or(MemberRole::Participant),
                     })
                     .collect();
-                self.access = next_access(self.access, community.contains(self.local_member));
+                self.access = next_access(self.access, community.role(self.local_member));
                 self.online.retain(|member| community.contains(*member));
                 self.pending_members
                     .retain(|member| !community.contains(*member));
@@ -765,23 +760,21 @@ impl CommunityState {
     }
 }
 
-fn initial_access(has_history: bool, admitted: bool) -> CommunityAccess {
-    if admitted {
-        CommunityAccess::Active
-    } else if has_history {
-        CommunityAccess::Removed
-    } else {
-        CommunityAccess::Waiting
+fn initial_access(has_history: bool, role: Option<MemberRole>) -> CommunityAccess {
+    match role {
+        Some(MemberRole::Participant) => CommunityAccess::Active,
+        Some(MemberRole::Availability) => CommunityAccess::Availability,
+        None if has_history => CommunityAccess::Removed,
+        None => CommunityAccess::Waiting,
     }
 }
 
-fn next_access(previous: CommunityAccess, admitted: bool) -> CommunityAccess {
-    if admitted {
-        CommunityAccess::Active
-    } else if previous == CommunityAccess::Waiting {
-        CommunityAccess::Waiting
-    } else {
-        CommunityAccess::Removed
+fn next_access(previous: CommunityAccess, role: Option<MemberRole>) -> CommunityAccess {
+    match role {
+        Some(MemberRole::Participant) => CommunityAccess::Active,
+        Some(MemberRole::Availability) => CommunityAccess::Availability,
+        None if previous == CommunityAccess::Waiting => CommunityAccess::Waiting,
+        None => CommunityAccess::Removed,
     }
 }
 
@@ -1156,8 +1149,8 @@ mod tests {
     use std::time::Duration;
 
     use grimoire_core::{
-        Attachment, Channel, ChannelId, ChannelKind, Command, DisplayName, MemberId, MessageId,
-        Node, NodeConfig, TextMessage,
+        Attachment, Channel, ChannelId, ChannelKind, Command, DisplayName, MemberId, MemberRole,
+        MessageId, Node, NodeConfig, TextMessage,
     };
 
     use super::{
@@ -1168,23 +1161,34 @@ mod tests {
 
     #[test]
     fn access_state_tracks_waiting_admission_and_removal() {
-        assert_eq!(initial_access(false, false), CommunityAccess::Waiting);
-        assert_eq!(initial_access(true, false), CommunityAccess::Removed);
-        assert_eq!(initial_access(true, true), CommunityAccess::Active);
+        assert_eq!(initial_access(false, None), CommunityAccess::Waiting);
+        assert_eq!(initial_access(true, None), CommunityAccess::Removed);
         assert_eq!(
-            next_access(CommunityAccess::Waiting, false),
-            CommunityAccess::Waiting
-        );
-        assert_eq!(
-            next_access(CommunityAccess::Waiting, true),
+            initial_access(false, Some(MemberRole::Participant)),
             CommunityAccess::Active
         );
         assert_eq!(
-            next_access(CommunityAccess::Active, false),
+            initial_access(false, Some(MemberRole::Availability)),
+            CommunityAccess::Availability
+        );
+        assert_eq!(
+            next_access(CommunityAccess::Waiting, None),
+            CommunityAccess::Waiting
+        );
+        assert_eq!(
+            next_access(CommunityAccess::Waiting, Some(MemberRole::Participant)),
+            CommunityAccess::Active
+        );
+        assert_eq!(
+            next_access(CommunityAccess::Availability, Some(MemberRole::Participant)),
+            CommunityAccess::Active
+        );
+        assert_eq!(
+            next_access(CommunityAccess::Active, None),
             CommunityAccess::Removed
         );
         assert_eq!(
-            next_access(CommunityAccess::Removed, false),
+            next_access(CommunityAccess::Removed, None),
             CommunityAccess::Removed
         );
     }
