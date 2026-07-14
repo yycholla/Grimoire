@@ -663,6 +663,12 @@ impl Shell {
             parse_member(member)
                 .map(|member| Command::ChangeMembership(MembershipChange::Admit(member)))
                 .and_then(|command| session.execute(command))
+        } else if let Some(member) = input.strip_prefix("/admit-availability ") {
+            parse_member(member)
+                .map(|member| {
+                    Command::ChangeMembership(MembershipChange::AdmitAvailability(member))
+                })
+                .and_then(|command| session.execute(command))
         } else if let Some(member) = input.strip_prefix("/remove ") {
             parse_member(member)
                 .map(|member| Command::ChangeMembership(MembershipChange::Remove(member)))
@@ -686,7 +692,7 @@ impl Shell {
                 .and_then(|attachment| session.execute(Command::ShareAttachment(attachment)))
         } else if input == "/help" {
             Err(
-                "commands: /name /channel /admit /remove /connect /backup /attach /mute /leave"
+                "commands: /name /channel /admit /admit-availability /remove /connect /backup /attach /mute /leave"
                     .to_owned(),
             )
         } else {
@@ -886,20 +892,6 @@ impl Shell {
             .ok_or_else(|| "no Community is open".to_owned())
             .and_then(|session| {
                 session.execute(Command::ChangeMembership(MembershipChange::Admit(member)))
-            })
-            .err();
-        cx.notify();
-    }
-
-    fn admit_availability_peer(&mut self, member: MemberId, cx: &mut Context<Self>) {
-        self.load_error = self
-            .session
-            .as_ref()
-            .ok_or_else(|| "no Community is open".to_owned())
-            .and_then(|session| {
-                session.execute(Command::ChangeMembership(
-                    MembershipChange::AdmitAvailability(member),
-                ))
             })
             .err();
         cx.notify();
@@ -1300,6 +1292,11 @@ impl Shell {
                 "your access ended",
                 "History already stored on this device remains available in its data directory.",
                 RED,
+            ),
+            CommunityAccess::Availability => (
+                "availability storage active",
+                "This identity retains encrypted Community data but cannot read or send messages. Ask the owner to admit this identity as a member to participate.",
+                TEAL,
             ),
             CommunityAccess::Active => unreachable!(),
         };
@@ -2942,17 +2939,6 @@ fn join_request_row(index: usize, member: MemberId, cx: &mut Context<Shell>) -> 
                         .hover(|style| style.text_color(rgb(BRIGHT)))
                         .on_click(cx.listener(move |this, _, _, cx| this.admit_member(member, cx)))
                         .child("admit member"),
-                )
-                .child(
-                    div()
-                        .id(("admit-availability", index))
-                        .cursor_pointer()
-                        .text_color(rgb(TEAL))
-                        .hover(|style| style.text_color(rgb(BRIGHT)))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.admit_availability_peer(member, cx)
-                        }))
-                        .child("admit availability"),
                 )
                 .child(
                     div()

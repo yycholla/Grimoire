@@ -121,7 +121,7 @@ To exercise two peers locally:
 
 1. Start the owner, choose **create a Community**, enter its data directory and display name, then select **copy invite** in the header.
 2. Start the joining client, choose **join with an invite**, and enter a different data directory, display name, and the copied invite.
-3. Select **admit** beside the yellow request in the owner's member roster. The joining client remains on its Waiting screen until admission, then admitted members reconnect to one another automatically. Display names are encrypted Community data and appear afterward.
+3. Select **admit member** beside the yellow request in the owner's member roster. The joining client remains on its Waiting screen until admission, then admitted members reconnect to one another automatically. Display names are encrypted Community data and appear afterward.
 4. Send text in **# general**. Share a file with the **⊕** composer button, drag it onto the window, or use `/attach /path/to/file`; the other peer can save or forget its local copy from the attachment chip. Owners create channels with the **+** beside the text or voice section.
 5. Select the same voice channel in both clients to join immediately. Use the voice dock in the sidebar to mute, deafen, leave, or monitor the connection while browsing elsewhere.
 
@@ -173,8 +173,9 @@ manually:
    ```
 
 3. The command prints its stable identity and current Iroh address, connects to
-   the invite owner, and waits. In the owner's member roster, select **admit
-   availability peer** for that identity, not **admit member**.
+   the invite owner, and waits. In the owner client's composer, run
+   `/admit-availability <identity>` using the printed identity. Ordinary join
+   requests only offer **admit member**.
 4. Leave the command running. It retains encrypted Community ciphertext until
    Ctrl-C; restart it with the same data directory to keep the same identity.
 
