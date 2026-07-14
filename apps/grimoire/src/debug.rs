@@ -361,8 +361,6 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
-// used by task 7-8 pages
-#[allow(dead_code)]
 fn stat(label: &'static str, value: String) -> impl IntoElement {
     div()
         .flex()
@@ -619,16 +617,77 @@ fn connections_page(shell: &mut Shell, cx: &mut Context<Shell>) -> AnyElement {
         .into_any_element()
 }
 
-fn storage_page(_shell: &Shell) -> impl IntoElement {
-    placeholder("storage — task 8")
+fn storage_page(shell: &Shell) -> impl IntoElement {
+    let snapshot = shell.debug.current.unwrap_or_default();
+    div()
+        .flex()
+        .flex_col()
+        .p(px(14.0))
+        .gap(px(10.0))
+        .child(div().text_color(rgb(crate::MUTED)).child("db size (2 min)"))
+        .child(sparkline(&shell.debug.db_bytes_history, crate::GREEN))
+        .child(stat("db size", format_bytes(snapshot.db_bytes)))
+        .child(stat("messages", snapshot.messages_total.to_string()))
+        .child(stat("attachments", snapshot.attachments_total.to_string()))
+        .child(stat("channels", snapshot.channels_total.to_string()))
+        .child(stat("members", snapshot.members_total.to_string()))
 }
 
-fn crypto_page(_shell: &Shell) -> impl IntoElement {
-    placeholder("crypto — task 8")
+fn crypto_page(shell: &Shell) -> impl IntoElement {
+    let snapshot = shell.debug.current.unwrap_or_default();
+    div()
+        .flex()
+        .flex_col()
+        .p(px(14.0))
+        .gap(px(10.0))
+        .child(stat("content epoch", snapshot.content_epoch.to_string()))
+        .child(stat(
+            "membership revision",
+            snapshot.membership_revision.to_string(),
+        ))
+        .child(stat("messages sent", snapshot.messages_sent.to_string()))
+        .child(stat(
+            "messages received",
+            snapshot.messages_received.to_string(),
+        ))
+        .child(stat(
+            "decrypt failures",
+            snapshot.decrypt_failures.to_string(),
+        ))
+        .child(
+            div()
+                .text_color(rgb(crate::MUTED))
+                .child("send/recv per second (2 min)"),
+        )
+        .child(sparkline(&shell.debug.send_rate_history, crate::GREEN))
+        .child(sparkline(&shell.debug.recv_rate_history, crate::YELLOW))
 }
 
-fn audio_page(_shell: &Shell) -> impl IntoElement {
-    placeholder("audio — task 9")
+fn audio_page(shell: &Shell) -> impl IntoElement {
+    let snapshot = shell.debug.current.unwrap_or_default();
+    div()
+        .flex()
+        .flex_col()
+        .p(px(14.0))
+        .gap(px(10.0))
+        .child(stat("voice state", shell.voice.status().to_string()))
+        .child(stat(
+            "input devices",
+            shell.audio_devices.input.len().to_string(),
+        ))
+        .child(stat(
+            "output devices",
+            shell.audio_devices.output.len().to_string(),
+        ))
+        .child(stat("frames sent", snapshot.voice_frames_sent.to_string()))
+        .child(stat(
+            "frames received",
+            snapshot.voice_frames_received.to_string(),
+        ))
+        .child(stat(
+            "frame failures",
+            snapshot.voice_frame_failures.to_string(),
+        ))
 }
 
 fn events_page(_shell: &mut Shell, _cx: &mut Context<Shell>) -> impl IntoElement {
