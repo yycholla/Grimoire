@@ -825,6 +825,10 @@ impl Shell {
                 }
             }
             SessionUpdate::Voice(update) => self.apply_voice_update(source, update),
+            // TODO(task5): handle metrics
+            SessionUpdate::Metrics(snapshot) => {
+                let _ = snapshot;
+            }
         }
         if stop_voice {
             self.leave_voice();
