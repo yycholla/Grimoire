@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -18,9 +18,21 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct Store {
     database: turso::Database,
+    path: PathBuf,
     membership_mutation: tokio::sync::Mutex<()>,
     channel_mutation: tokio::sync::Mutex<()>,
     member_profile_mutation: tokio::sync::Mutex<()>,
+}
+
+/// Cheap row counts for a few key tables, used by the debug hub.
+///
+/// Constructed by `Store::debug_counts` and assembled into `MetricsSnapshot`
+/// by `Node::metrics_snapshot`.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct StoreCounts {
+    pub messages: u64,
+    pub attachments: u64,
+    pub channels: u64,
 }
 
 impl Store {
@@ -37,6 +49,7 @@ impl Store {
             .await?;
         let store = Self {
             database,
+            path,
             membership_mutation: tokio::sync::Mutex::new(()),
             channel_mutation: tokio::sync::Mutex::new(()),
             member_profile_mutation: tokio::sync::Mutex::new(()),
@@ -226,6 +239,37 @@ impl Store {
                 .await?;
         }
         Ok(store)
+    }
+
+    pub fn db_path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Counts messages from the `encrypted_messages` table (the live
+    /// encrypted store), deliberately not the legacy `messages` table.
+    pub async fn debug_counts(&self) -> Result<StoreCounts, NodeError> {
+        let connection = self.database.connect()?;
+        let mut rows = connection
+            .query(
+                "SELECT \
+                    (SELECT COUNT(*) FROM encrypted_messages), \
+                    (SELECT COUNT(*) FROM encrypted_attachments), \
+                    (SELECT COUNT(*) FROM channels)",
+                (),
+            )
+            .await?;
+        let row = rows
+            .next()
+            .await?
+            .ok_or_else(|| NodeError::protocol("count query returned no row"))?;
+        let count = |value: i64| {
+            u64::try_from(value).map_err(|_| NodeError::protocol("stored count is negative"))
+        };
+        Ok(StoreCounts {
+            messages: count(row.get(0)?)?,
+            attachments: count(row.get(1)?)?,
+            channels: count(row.get(2)?)?,
+        })
     }
 
     pub async fn identity_seed(&self) -> Result<[u8; 32], NodeError> {
@@ -457,7 +501,9 @@ impl Store {
         Ok(community)
     }
 
-    pub async fn next_membership_revision(&self) -> Result<u64, NodeError> {
+    /// Cheap `MAX(revision)` lookup (0 when no changes are recorded), unlike
+    /// `active_membership_head`, which replays the full signed history.
+    pub async fn latest_membership_revision(&self) -> Result<u64, NodeError> {
         let connection = self.database.connect()?;
         let mut rows = connection
             .query(
@@ -471,8 +517,13 @@ impl Store {
             .ok_or_else(|| NodeError::protocol("membership revision query returned no row"))?
             .get(0)?;
         u64::try_from(revision)
-            .ok()
-            .and_then(|revision| revision.checked_add(1))
+            .map_err(|_| NodeError::protocol("membership revision exceeds storage range"))
+    }
+
+    pub async fn next_membership_revision(&self) -> Result<u64, NodeError> {
+        self.latest_membership_revision()
+            .await?
+            .checked_add(1)
             .ok_or_else(|| NodeError::protocol("membership revision overflow"))
     }
 
@@ -1081,7 +1132,7 @@ impl Store {
         Ok(rows.next().await?.is_some())
     }
 
-    async fn latest_content_epoch(&self) -> Result<Option<ContentEpoch>, NodeError> {
+    pub(crate) async fn latest_content_epoch(&self) -> Result<Option<ContentEpoch>, NodeError> {
         let mut rows = self
             .database
             .connect()?
@@ -1864,5 +1915,30 @@ mod tests {
             store.community().await.unwrap().role(availability),
             Some(crate::MemberRole::Availability)
         );
+    }
+
+    #[tokio::test]
+    async fn debug_counts_reports_channels() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::open(directory.path()).await.unwrap();
+        let owner_key = SigningKey::from_bytes(&[1; 32]);
+        let owner = MemberId::from_bytes(owner_key.verifying_key().to_bytes());
+        let id = CommunityId::from_bytes([2; 32]);
+        store
+            .initialize_community(Some((id, owner)), owner)
+            .await
+            .unwrap();
+
+        let counts = store.debug_counts().await.unwrap();
+        assert_eq!(counts.channels, 0);
+        assert_eq!(counts.messages, 0);
+
+        let channel = Channel::new(ChannelId::GENERAL, "general", ChannelKind::Text).unwrap();
+        let signed = SignedCreateChannel::sign(&owner_key, id, channel);
+        assert!(store.insert_channel(&signed).await.unwrap());
+
+        let counts = store.debug_counts().await.unwrap();
+        assert_eq!(counts.channels, 1);
+        assert_eq!(counts.messages, 0);
     }
 }

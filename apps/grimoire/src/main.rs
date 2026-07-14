@@ -2,8 +2,8 @@ use std::{path::PathBuf, time::Duration};
 
 use gpui::{
     App, Application, Bounds, ClipboardItem, Context, Entity, ExternalPaths, IntoElement,
-    ParentElement, PathPromptOptions, Render, Styled, Window, WindowBounds, WindowOptions, div,
-    prelude::*, px, rgb, rgba, size,
+    KeyBinding, ParentElement, PathPromptOptions, Render, Styled, Window, WindowBounds,
+    WindowOptions, actions, div, prelude::*, px, rgb, rgba, size,
 };
 use grimoire_audio::{VoiceDeviceConfig, VoiceDeviceNames, available_devices};
 use grimoire_core::{
@@ -20,10 +20,13 @@ use state::{
 
 mod cli;
 mod config;
+mod debug;
 mod state;
 mod text_input;
 
 use text_input::{Submitted, TextInput};
+
+actions!(grimoire, [ToggleDebug]);
 
 const BG: u32 = 0x0c1212;
 const PANEL: u32 = 0x101a19;
@@ -104,6 +107,11 @@ struct Shell {
     switching_community: bool,
     audio_devices: VoiceDeviceNames,
     load_error: Option<String>,
+    debug: debug::DebugState,
+    debug_open: bool,
+    debug_page: debug::DebugPage,
+    expanded_peer: Option<MemberId>,
+    expanded_event: Option<usize>,
 }
 
 impl Shell {
@@ -167,6 +175,11 @@ impl Shell {
                 switching_community: false,
                 audio_devices: VoiceDeviceNames::default(),
                 load_error: None,
+                debug: debug::DebugState::default(),
+                debug_open: false,
+                debug_page: debug::DebugPage::default(),
+                expanded_peer: None,
+                expanded_event: None,
             },
             Ok(None) => Self {
                 config: config.clone(),
@@ -196,6 +209,11 @@ impl Shell {
                 switching_community: false,
                 audio_devices: VoiceDeviceNames::default(),
                 load_error: None,
+                debug: debug::DebugState::default(),
+                debug_open: false,
+                debug_page: debug::DebugPage::default(),
+                expanded_peer: None,
+                expanded_event: None,
             },
             Err(error) => Self {
                 config,
@@ -225,6 +243,11 @@ impl Shell {
                 switching_community: false,
                 audio_devices: VoiceDeviceNames::default(),
                 load_error: Some(error),
+                debug: debug::DebugState::default(),
+                debug_open: false,
+                debug_page: debug::DebugPage::default(),
+                expanded_peer: None,
+                expanded_event: None,
             },
         };
         if let Some(path) = shell.current_path.clone()
@@ -733,9 +756,15 @@ impl Shell {
         let mut refresh_speaking = false;
         match update {
             SessionUpdate::Event(grimoire_core::Event::Fault(error)) => {
+                self.debug.push_event(
+                    debug::event_summary(&grimoire_core::Event::Fault(error.clone())),
+                    error.to_string(),
+                );
                 self.load_error = Some(error.to_string());
             }
             SessionUpdate::Event(event) => {
+                self.debug
+                    .push_event(debug::event_summary(&event), format!("{event:?}"));
                 refresh_speaking = matches!(&event, grimoire_core::Event::VoiceReceived(_));
                 let event_channel = match &event {
                     grimoire_core::Event::TextStored(authored) => {
@@ -796,7 +825,11 @@ impl Shell {
                         && state.access() == CommunityAccess::Removed;
                 }
             }
-            SessionUpdate::CommandFailed(error) => self.load_error = Some(error),
+            SessionUpdate::CommandFailed(error) => {
+                self.debug
+                    .push_event("command failed".to_string(), error.clone());
+                self.load_error = Some(error);
+            }
             SessionUpdate::InviteReady(invite) => {
                 cx.write_to_clipboard(ClipboardItem::new_string(invite.clone()));
                 self.invite = Some(invite);
@@ -823,8 +856,21 @@ impl Shell {
                 {
                     state.apply_diagnostics(&peers);
                 }
+                for peer in &peers {
+                    if let Some(path) = peer.paths().iter().find(|path| path.is_selected()) {
+                        self.debug
+                            .push_rtt(peer.member(), path.rtt().as_millis() as u64);
+                    }
+                }
             }
-            SessionUpdate::Voice(update) => self.apply_voice_update(source, update),
+            SessionUpdate::Voice(update) => {
+                self.debug
+                    .push_event(format!("voice: {update:?}"), String::new());
+                self.apply_voice_update(source, update);
+            }
+            SessionUpdate::Metrics(snapshot) => {
+                self.debug.apply_metrics(snapshot);
+            }
         }
         if stop_voice {
             self.leave_voice();
@@ -1663,6 +1709,10 @@ impl Shell {
         self.state = Some(next_state);
         self.session = Some(next_session);
         self.invite = None;
+        // Debug metrics/history/event-log belong to the community we left.
+        self.debug = debug::DebugState::default();
+        self.expanded_peer = None;
+        self.expanded_event = None;
         self.mark_selected_read();
         let previous_data_dir = self.config.last_data_dir.clone();
         self.config.last_data_dir = self
@@ -2359,7 +2409,7 @@ impl Shell {
         }
     }
 
-    fn status_bar(&self) -> impl IntoElement {
+    fn status_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(state) = &self.state {
             let connection = state.connection();
             let label = connection_label(connection);
@@ -2385,7 +2435,17 @@ impl Shell {
                 .child(separator())
                 .child(status(format!("{online}/{} awake", state.members.len())))
                 .child(div().flex_1())
-                .child(div().text_color(rgb(MUTED)).child("live diagnostics"))
+                .child(
+                    div()
+                        .id("debug-toggle")
+                        .text_color(rgb(MUTED))
+                        .hover(|style| style.text_color(rgb(BRIGHT)))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.debug_open = !this.debug_open;
+                            cx.notify();
+                        }))
+                        .child("live diagnostics"),
+                )
         } else {
             div()
                 .flex()
@@ -2405,7 +2465,17 @@ impl Shell {
                 )
                 .child(status("representative local state"))
                 .child(div().flex_1())
-                .child(div().text_color(rgb(MUTED)).child("no Community open"))
+                .child(
+                    div()
+                        .id("debug-toggle")
+                        .text_color(rgb(MUTED))
+                        .hover(|style| style.text_color(rgb(BRIGHT)))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.debug_open = !this.debug_open;
+                            cx.notify();
+                        }))
+                        .child("live diagnostics"),
+                )
         }
     }
 
@@ -2454,8 +2524,16 @@ impl Render for Shell {
         {
             return self.access_view(access, cx).into_any_element();
         }
+        if self.debug_open {
+            return debug::debug_view(self, cx).into_any_element();
+        }
         div()
             .id("community-root")
+            .key_context("GrimoireShell")
+            .on_action(cx.listener(|this, _: &ToggleDebug, _, cx| {
+                this.debug_open = !this.debug_open;
+                cx.notify();
+            }))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
                 for path in paths.paths() {
                     this.share_attachment_path(path.clone(), cx);
@@ -2479,7 +2557,7 @@ impl Render for Shell {
                     .child(self.timeline(cx))
                     .child(self.roster(cx)),
             )
-            .child(self.status_bar())
+            .child(self.status_bar(cx))
             .children(self.overlay_view(cx))
             .into_any_element()
     }
@@ -3094,6 +3172,7 @@ fn main() -> anyhow::Result<()> {
     }
     Application::new().run(move |cx: &mut App| {
         text_input::init(cx);
+        cx.bind_keys([KeyBinding::new("ctrl-shift-d", ToggleDebug, None)]);
         let bounds = Bounds::centered(None, size(px(1080.0), px(660.0)), cx);
         cx.open_window(
             WindowOptions {

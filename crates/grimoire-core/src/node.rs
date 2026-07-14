@@ -27,6 +27,7 @@ use crate::{
         EncryptedText, EncryptedVoicePresence, KeyRegistration, decrypt_voice, encrypt_voice,
         hpke_public,
     },
+    metrics::{Metrics, MetricsSnapshot},
     model::{
         MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_NAME_BYTES, MAX_VOICE_PARTICIPANTS,
         SignedCreateChannel,
@@ -298,6 +299,7 @@ pub struct Node {
     store: Arc<Store>,
     connections: Arc<Mutex<Vec<PeerConnection>>>,
     community: Arc<RwLock<Community>>,
+    metrics: Arc<Metrics>,
     voice_presence: Arc<Mutex<BTreeMap<MemberId, ActiveVoicePresence>>>,
     voice_presence_commands: Arc<Mutex<()>>,
     events: broadcast::Sender<Event>,
@@ -308,6 +310,7 @@ pub struct Node {
 impl Node {
     pub async fn open(config: NodeConfig) -> Result<Self, NodeError> {
         let store = Arc::new(Store::open(&config.data_dir).await?);
+        let metrics = Arc::new(Metrics::default());
         if config.require_existing_community {
             store.community_id().await?;
         }
@@ -367,6 +370,7 @@ impl Node {
             pending_registrations: pending_registrations.clone(),
             membership_commands,
             profile_commands: profile_commands.clone(),
+            metrics: metrics.clone(),
         });
         let endpoint = match config.connectivity {
             Connectivity::Local => Endpoint::builder(presets::Minimal),
@@ -394,6 +398,7 @@ impl Node {
             voice_presence_commands: voice_presence_commands.clone(),
             voice_presence_receives,
             events: events.clone(),
+            metrics: metrics.clone(),
         };
         let router = Router::builder(endpoint)
             .accept(ALPN, handler.clone())
@@ -412,6 +417,7 @@ impl Node {
             store,
             connections,
             community,
+            metrics,
             voice_presence,
             voice_presence_commands,
             events,
@@ -477,6 +483,37 @@ impl Node {
             .collect()
     }
 
+    pub async fn metrics_snapshot(&self) -> MetricsSnapshot {
+        let mut snapshot = self.metrics.snapshot();
+
+        if let Ok(counts) = self.store.debug_counts().await {
+            snapshot.messages_total = counts.messages;
+            snapshot.attachments_total = counts.attachments;
+            snapshot.channels_total = counts.channels;
+        }
+        snapshot.db_bytes = tokio::fs::metadata(self.store.db_path())
+            .await
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+        snapshot.members_total = self.community.read().await.member_count() as u64;
+        if let Ok(Some(epoch)) = self.store.latest_content_epoch().await {
+            snapshot.content_epoch = epoch.number;
+        }
+        if let Ok(revision) = self.store.latest_membership_revision().await {
+            snapshot.membership_revision = revision;
+        }
+
+        let endpoint = self.router.endpoint().metrics();
+        snapshot.recv_datagrams = endpoint.socket.recv_datagrams.get();
+        snapshot.send_relay = endpoint.socket.send_relay.get();
+        snapshot.recv_data_relay = endpoint.socket.recv_data_relay.get();
+        snapshot.holepunch_attempts = endpoint.socket.holepunch_attempts.get();
+        snapshot.conns_opened = endpoint.socket.num_conns_opened.get();
+        snapshot.conns_closed = endpoint.socket.num_conns_closed.get();
+
+        snapshot
+    }
+
     pub async fn export_identity(
         &self,
         path: impl AsRef<Path>,
@@ -539,6 +576,7 @@ impl Node {
     async fn post_text(&self, message: TextMessage) -> Result<(), NodeError> {
         let outcome = self.handler.egregore.post_text(message).await?;
         self.handler.finish_apply(outcome).await;
+        self.metrics.messages_sent.inc();
         Ok(())
     }
 
@@ -551,6 +589,7 @@ impl Node {
     async fn share_attachment(&self, attachment: crate::Attachment) -> Result<(), NodeError> {
         let outcome = self.handler.egregore.share_attachment(attachment).await?;
         self.handler.finish_apply(outcome).await;
+        self.metrics.messages_sent.inc();
         Ok(())
     }
 
@@ -634,6 +673,7 @@ impl Node {
                 let _ = self.events.send(Event::Fault(NodeError::network(error)));
             }
         }
+        self.metrics.voice_frames_sent.inc();
         Ok(())
     }
 
@@ -882,6 +922,7 @@ struct OperationHandler {
     voice_presence_commands: Arc<Mutex<()>>,
     voice_presence_receives: Arc<Mutex<()>>,
     events: broadcast::Sender<Event>,
+    metrics: Arc<Metrics>,
 }
 
 #[derive(Debug)]
@@ -895,6 +936,7 @@ struct Egregore {
     pending_registrations: Arc<Mutex<BTreeMap<MemberId, KeyRegistration>>>,
     membership_commands: Arc<Mutex<()>>,
     profile_commands: Arc<Mutex<()>>,
+    metrics: Arc<Metrics>,
 }
 
 #[derive(Default)]
@@ -1510,9 +1552,16 @@ impl Egregore {
             .local_content_key(encrypted.epoch, &encrypted.head)
             .await?;
         let authored = key
-            .map(|key| encrypted.decrypt(self.community_id, &key))
+            .map(|key| {
+                encrypted
+                    .decrypt(self.community_id, &key)
+                    .inspect_err(|_| self.metrics.decrypt_failures.inc())
+            })
             .transpose()?;
         let events = if self.store.insert_encrypted(&encrypted).await? {
+            if authored.is_some() {
+                self.metrics.messages_received.inc();
+            }
             authored.into_iter().map(Event::TextStored).collect()
         } else {
             Vec::new()
@@ -1579,9 +1628,16 @@ impl Egregore {
         let authored = self
             .local_content_key(encrypted.epoch, &encrypted.head)
             .await?
-            .map(|key| encrypted.decrypt(self.community_id, &key))
+            .map(|key| {
+                encrypted
+                    .decrypt(self.community_id, &key)
+                    .inspect_err(|_| self.metrics.decrypt_failures.inc())
+            })
             .transpose()?;
         let events = if self.store.insert_encrypted_attachment(&encrypted).await? {
+            if authored.is_some() {
+                self.metrics.messages_received.inc();
+            }
             authored.into_iter().map(Event::AttachmentStored).collect()
         } else {
             Vec::new()
@@ -1638,7 +1694,11 @@ impl Egregore {
         let name = self
             .local_content_key(profile.epoch, &profile.head)
             .await?
-            .map(|key| profile.decrypt(self.community_id, &key))
+            .map(|key| {
+                profile
+                    .decrypt(self.community_id, &key)
+                    .inspect_err(|_| self.metrics.decrypt_failures.inc())
+            })
             .transpose()?;
         let events = if self.store.insert_member_profile(&profile).await? {
             name.map(|name| Event::DisplayNameChanged {
@@ -1704,7 +1764,9 @@ impl OperationHandler {
             .content_key(encrypted.epoch, &encrypted.head)
             .await?
             .ok_or_else(|| NodeError::protocol("voice presence content key is unavailable"))?;
-        let (channel, state) = encrypted.decrypt(self.community_id, peer, &key)?;
+        let (channel, state) = encrypted
+            .decrypt(self.community_id, peer, &key)
+            .inspect_err(|_| self.metrics.decrypt_failures.inc())?;
         require_channel(&self.store, channel, ChannelKind::Voice).await?;
         let events = {
             let mut active = self.voice_presence.lock().await;
@@ -2010,7 +2072,9 @@ impl OperationHandler {
             head,
             key,
         };
-        let payload = decrypt_voice(self.community_id, epoch, author, &encrypted, &nonce)?;
+        let payload = decrypt_voice(self.community_id, epoch, author, &encrypted, &nonce)
+            .inspect_err(|_| self.metrics.voice_frame_failures.inc())?;
+        self.metrics.voice_frames_received.inc();
         let frame = VoiceFrame::in_channel(
             encrypted.stream_id(),
             encrypted.channel_id(),

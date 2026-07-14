@@ -8,8 +8,8 @@ use std::{
 use grimoire_audio::{VoiceDeviceConfig, VoiceSession};
 use grimoire_core::{
     ChannelId, ChannelKind, Command, CommunityInvite, ConnectionPathKind, Event,
-    MAX_VOICE_PARTICIPANTS, MemberId, MemberRole, MessageId, Node, NodeConfig, PeerAddress,
-    PeerDiagnostic, Snapshot, VoicePresence, restore_identity,
+    MAX_VOICE_PARTICIPANTS, MemberId, MemberRole, MessageId, MetricsSnapshot, Node, NodeConfig,
+    PeerAddress, PeerDiagnostic, Snapshot, VoicePresence, restore_identity,
 };
 use tokio::{
     runtime::Runtime,
@@ -63,6 +63,7 @@ pub enum SessionUpdate {
     },
     Diagnostics(Vec<PeerDiagnostic>),
     Voice(VoiceUpdate),
+    Metrics(MetricsSnapshot),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -721,6 +722,10 @@ impl CommunityState {
         &self.local_address
     }
 
+    pub fn peer_diagnostics(&self) -> &[PeerDiagnostic] {
+        &self.diagnostics
+    }
+
     pub fn apply_diagnostics(&mut self, peers: &[PeerDiagnostic]) {
         self.diagnostics = peers.to_vec();
         self.online = peers
@@ -1123,6 +1128,10 @@ fn open(
                 _ = diagnostics.tick() => {
                     let peers = event_node.connection_diagnostics().await;
                     if update_tx.send(SessionUpdate::Diagnostics(peers)).is_err() {
+                        break;
+                    }
+                    let snapshot = event_node.metrics_snapshot().await;
+                    if update_tx.send(SessionUpdate::Metrics(snapshot)).is_err() {
                         break;
                     }
                 }
