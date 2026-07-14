@@ -2,9 +2,10 @@ use std::collections::{BTreeMap, VecDeque};
 
 use gpui::prelude::*;
 use gpui::{AnyElement, Context, SharedString, div, px, rgb};
-use grimoire_core::{Event, MemberId, MetricsSnapshot};
+use grimoire_core::{ConnectionPathKind, Event, MemberId, MetricsSnapshot};
 
 use crate::Shell;
+use crate::state::CommunityState;
 
 pub const HISTORY_LEN: usize = 120; // ~2 min at 1 s cadence
 pub const EVENT_LOG_LEN: usize = 500;
@@ -331,7 +332,7 @@ fn overview_card(
         .children(extra)
 }
 
-fn sparkline(history: &VecDeque<u64>, color: u32) -> impl IntoElement {
+fn sparkline(history: &VecDeque<u64>, color: u32) -> impl IntoElement + use<> {
     let samples: Vec<u64> = history
         .iter()
         .rev()
@@ -380,8 +381,242 @@ fn placeholder(label: &'static str) -> impl IntoElement {
     div().p(px(14.0)).text_color(rgb(crate::MUTED)).child(label)
 }
 
-fn connections_page(_shell: &mut Shell, _cx: &mut Context<Shell>) -> impl IntoElement {
-    placeholder("connections — task 7")
+struct PeerRow {
+    member: MemberId,
+    name: String,
+    selected_kind: Option<ConnectionPathKind>,
+    selected_rtt_ms: u64,
+    paths: Vec<(ConnectionPathKind, bool, u64)>,
+    rtt_history: VecDeque<u64>,
+    expanded: bool,
+    full_hex: String,
+}
+
+fn display_name(state: &CommunityState, member: MemberId) -> String {
+    state
+        .members
+        .iter()
+        .find(|entry| entry.id == member)
+        .map(|entry| entry.name.clone())
+        .unwrap_or_else(|| short_member(&member))
+}
+
+fn kind_label(kind: ConnectionPathKind) -> &'static str {
+    match kind {
+        ConnectionPathKind::Direct => "direct",
+        ConnectionPathKind::Relay => "relay",
+        ConnectionPathKind::Custom => "custom",
+    }
+}
+
+fn connections_page(shell: &mut Shell, cx: &mut Context<Shell>) -> AnyElement {
+    let Some(state) = shell.state.as_ref() else {
+        return placeholder("no active session").into_any_element();
+    };
+    let expanded = shell.expanded_peer;
+    let snapshot = shell.debug.current.unwrap_or_default();
+
+    // Extract everything owned up front so element listeners (which need
+    // &mut Shell via cx) don't collide with borrows of `shell`.
+    let rows: Vec<PeerRow> = state
+        .peer_diagnostics()
+        .iter()
+        .map(|peer| {
+            let member = peer.member();
+            let paths: Vec<(ConnectionPathKind, bool, u64)> = peer
+                .paths()
+                .iter()
+                .map(|path| {
+                    (
+                        path.kind(),
+                        path.is_selected(),
+                        path.rtt().as_millis() as u64,
+                    )
+                })
+                .collect();
+            let selected = paths
+                .iter()
+                .copied()
+                .find(|(_, is_selected, _)| *is_selected);
+            PeerRow {
+                member,
+                name: display_name(state, member),
+                selected_kind: selected.map(|(kind, _, _)| kind),
+                selected_rtt_ms: selected.map(|(_, _, rtt)| rtt).unwrap_or(0),
+                paths,
+                // Only the expanded peer renders a sparkline, so only it needs
+                // its history cloned.
+                rtt_history: if expanded == Some(member) {
+                    shell
+                        .debug
+                        .rtt_history
+                        .get(&member)
+                        .cloned()
+                        .unwrap_or_default()
+                } else {
+                    VecDeque::new()
+                },
+                expanded: expanded == Some(member),
+                full_hex: member
+                    .as_bytes()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect(),
+            }
+        })
+        .collect();
+
+    let max_rtt = rows
+        .iter()
+        .map(|row| row.selected_rtt_ms)
+        .max()
+        .unwrap_or(1)
+        .max(1);
+
+    let bars = div()
+        .flex()
+        .items_end()
+        .gap(px(10.0))
+        .h(px(90.0))
+        .children(rows.iter().map(|row| {
+            let member = row.member;
+            let relay = matches!(row.selected_kind, Some(ConnectionPathKind::Relay));
+            let height = ((row.selected_rtt_ms as f32 / max_rtt as f32) * 78.0).max(2.0);
+            let color = if relay { crate::YELLOW } else { crate::GREEN };
+            let label = format!("{} {}ms", row.name, row.selected_rtt_ms);
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap(px(4.0))
+                .child(
+                    div()
+                        .id(SharedString::from(format!(
+                            "conn-bar-{}",
+                            short_member(&member)
+                        )))
+                        .w(px(26.0))
+                        .h(px(height))
+                        .bg(rgb(color))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.expanded_peer = if this.expanded_peer == Some(member) {
+                                None
+                            } else {
+                                Some(member)
+                            };
+                            cx.notify();
+                        })),
+                )
+                .child(
+                    div()
+                        .text_size(px(10.0))
+                        .text_color(rgb(crate::SECONDARY))
+                        .child(label),
+                )
+        }));
+
+    let strip = div()
+        .flex()
+        .gap(px(18.0))
+        .text_size(px(11.0))
+        .text_color(rgb(crate::MUTED))
+        .child(format!(
+            "conns {}/{}",
+            snapshot.conns_opened, snapshot.conns_closed
+        ))
+        .child(format!("holepunch {}", snapshot.holepunch_attempts))
+        .child(format!(
+            "relay ⇅ {}/{}",
+            snapshot.send_relay, snapshot.recv_data_relay
+        ))
+        .child(format!("datagrams {}", snapshot.recv_datagrams));
+
+    div()
+        .id("debug-connections")
+        .flex()
+        .flex_col()
+        .flex_1()
+        .gap(px(12.0))
+        .p(px(14.0))
+        .overflow_y_scroll()
+        .child(bars)
+        .child(strip)
+        .children(rows.iter().map(|row| {
+            let member = row.member;
+            let relay = matches!(row.selected_kind, Some(ConnectionPathKind::Relay));
+            let kind_text = row.selected_kind.map(kind_label).unwrap_or("no path");
+            let marker = if row.expanded { "▾" } else { "▸" };
+            let header = format!(
+                "{} {} · {} · {}ms",
+                marker, row.name, kind_text, row.selected_rtt_ms
+            );
+            let container = div()
+                .flex()
+                .flex_col()
+                .gap(px(4.0))
+                .p(px(8.0))
+                .border_1()
+                .border_color(rgb(if row.expanded {
+                    crate::GREEN
+                } else {
+                    crate::BORDER
+                }))
+                .rounded(px(4.0))
+                // Only the header toggles; clicking the expanded detail (hex,
+                // sparkline) must not collapse the row.
+                .child(
+                    div()
+                        .id(SharedString::from(format!(
+                            "conn-row-{}",
+                            short_member(&member)
+                        )))
+                        .cursor_pointer()
+                        .text_color(rgb(crate::TEXT))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.expanded_peer = if this.expanded_peer == Some(member) {
+                                None
+                            } else {
+                                Some(member)
+                            };
+                            cx.notify();
+                        }))
+                        .child(header),
+                );
+            if row.expanded {
+                let color = if relay { crate::YELLOW } else { crate::GREEN };
+                let detail = div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.0))
+                    .pl(px(12.0))
+                    .pt(px(4.0))
+                    .children(row.paths.iter().map(|(kind, is_selected, rtt)| {
+                        let dot = if *is_selected { "●" } else { "○" };
+                        let tail = if *is_selected { " ← selected" } else { "" };
+                        div()
+                            .text_size(px(11.0))
+                            .text_color(rgb(crate::SECONDARY))
+                            .child(format!("{} {} {}ms{}", dot, kind_label(*kind), rtt, tail))
+                    }))
+                    .child(
+                        div()
+                            .text_size(px(10.0))
+                            .text_color(rgb(crate::MUTED))
+                            .child("rtt (last 60s)"),
+                    )
+                    .child(sparkline(&row.rtt_history, color))
+                    .child(
+                        div()
+                            .text_size(px(10.0))
+                            .text_color(rgb(crate::MUTED))
+                            .child(row.full_hex.clone()),
+                    );
+                container.child(detail).into_any_element()
+            } else {
+                container.into_any_element()
+            }
+        }))
+        .into_any_element()
 }
 
 fn storage_page(_shell: &Shell) -> impl IntoElement {

@@ -110,8 +110,6 @@ struct Shell {
     debug: debug::DebugState,
     debug_open: bool,
     debug_page: debug::DebugPage,
-    // read by the connections page (task 7)
-    #[allow(dead_code)]
     expanded_peer: Option<MemberId>,
 }
 
