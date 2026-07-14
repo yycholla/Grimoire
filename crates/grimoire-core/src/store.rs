@@ -1132,7 +1132,7 @@ impl Store {
         Ok(rows.next().await?.is_some())
     }
 
-    async fn latest_content_epoch(&self) -> Result<Option<ContentEpoch>, NodeError> {
+    pub(crate) async fn latest_content_epoch(&self) -> Result<Option<ContentEpoch>, NodeError> {
         let mut rows = self
             .database
             .connect()?

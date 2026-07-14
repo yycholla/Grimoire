@@ -496,7 +496,7 @@ impl Node {
             .map(|meta| meta.len())
             .unwrap_or(0);
         snapshot.members_total = self.community.read().await.member_count() as u64;
-        if let Ok(Some(epoch)) = self.store.active_content_epoch().await {
+        if let Ok(Some(epoch)) = self.store.latest_content_epoch().await {
             snapshot.content_epoch = epoch.number;
         }
         if let Ok(revision) = self.store.latest_membership_revision().await {
@@ -1694,7 +1694,11 @@ impl Egregore {
         let name = self
             .local_content_key(profile.epoch, &profile.head)
             .await?
-            .map(|key| profile.decrypt(self.community_id, &key))
+            .map(|key| {
+                profile
+                    .decrypt(self.community_id, &key)
+                    .inspect_err(|_| self.metrics.decrypt_failures.inc())
+            })
             .transpose()?;
         let events = if self.store.insert_member_profile(&profile).await? {
             name.map(|name| Event::DisplayNameChanged {
@@ -1760,7 +1764,9 @@ impl OperationHandler {
             .content_key(encrypted.epoch, &encrypted.head)
             .await?
             .ok_or_else(|| NodeError::protocol("voice presence content key is unavailable"))?;
-        let (channel, state) = encrypted.decrypt(self.community_id, peer, &key)?;
+        let (channel, state) = encrypted
+            .decrypt(self.community_id, peer, &key)
+            .inspect_err(|_| self.metrics.decrypt_failures.inc())?;
         require_channel(&self.store, channel, ChannelKind::Voice).await?;
         let events = {
             let mut active = self.voice_presence.lock().await;

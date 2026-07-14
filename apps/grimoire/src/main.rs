@@ -1710,6 +1710,10 @@ impl Shell {
         self.state = Some(next_state);
         self.session = Some(next_session);
         self.invite = None;
+        // Debug metrics/history/event-log belong to the community we left.
+        self.debug = debug::DebugState::default();
+        self.expanded_peer = None;
+        self.expanded_event = None;
         self.mark_selected_read();
         let previous_data_dir = self.config.last_data_dir.clone();
         self.config.last_data_dir = self
