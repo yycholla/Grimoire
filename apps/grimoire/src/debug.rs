@@ -1,11 +1,13 @@
 use std::collections::{BTreeMap, VecDeque};
 
+use gpui::prelude::*;
+use gpui::{AnyElement, Context, SharedString, div, px, rgb};
 use grimoire_core::{Event, MemberId, MetricsSnapshot};
+
+use crate::Shell;
 
 pub const HISTORY_LEN: usize = 120; // ~2 min at 1 s cadence
 pub const EVENT_LOG_LEN: usize = 500;
-// consumed by debug rendering (tasks 7-9)
-#[allow(dead_code)]
 pub const SPARKLINE_LEN: usize = 60; // samples shown in expanded peer rows
 
 // Fields are populated now but only read by debug rendering (tasks 7-9).
@@ -95,6 +97,307 @@ fn short_member(member: &MemberId) -> String {
         "{:02x}{:02x}{:02x}{:02x}",
         bytes[0], bytes[1], bytes[2], bytes[3]
     )
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum DebugPage {
+    #[default]
+    Overview,
+    Connections,
+    Storage,
+    Crypto,
+    Audio,
+    Events,
+}
+
+impl DebugPage {
+    pub const ALL: [DebugPage; 6] = [
+        DebugPage::Overview,
+        DebugPage::Connections,
+        DebugPage::Storage,
+        DebugPage::Crypto,
+        DebugPage::Audio,
+        DebugPage::Events,
+    ];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            DebugPage::Overview => "overview",
+            DebugPage::Connections => "connections",
+            DebugPage::Storage => "storage",
+            DebugPage::Crypto => "crypto",
+            DebugPage::Audio => "audio",
+            DebugPage::Events => "events",
+        }
+    }
+}
+
+/// Full-screen debug hub: header, page sidebar, and the active page body.
+pub fn debug_view(shell: &mut Shell, cx: &mut Context<Shell>) -> impl IntoElement {
+    let page = shell.debug_page;
+    let nav = sidebar(shell, cx);
+    let body = page_body(shell, cx);
+    div()
+        .id("debug-root")
+        .key_context("GrimoireShell")
+        .on_action(cx.listener(|this, _: &crate::ToggleDebug, _, cx| {
+            this.debug_open = !this.debug_open;
+            cx.notify();
+        }))
+        .flex()
+        .flex_col()
+        .size_full()
+        .overflow_hidden()
+        .bg(rgb(crate::BG))
+        .font_family("monospace")
+        .text_size(px(13.0))
+        .text_color(rgb(crate::TEXT))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .h(px(38.0))
+                .px(px(16.0))
+                .gap(px(12.0))
+                .border_b_1()
+                .border_color(rgb(crate::BORDER))
+                .child(div().text_color(rgb(crate::BRIGHT)).child("debug"))
+                .child(
+                    div()
+                        .text_color(rgb(crate::MUTED))
+                        .child(SharedString::from(format!("· {}", page.label()))),
+                )
+                .child(div().flex_1())
+                .child(
+                    div()
+                        .id("debug-close")
+                        .text_color(rgb(crate::SECONDARY))
+                        .hover(|style| style.text_color(rgb(crate::BRIGHT)))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.debug_open = false;
+                            cx.notify();
+                        }))
+                        .child("✕"),
+                ),
+        )
+        .child(div().flex().flex_1().min_h_0().child(nav).child(body))
+}
+
+fn sidebar(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement + use<> {
+    let active = shell.debug_page;
+    div()
+        .flex()
+        .flex_col()
+        .w(px(160.0))
+        .h_full()
+        .py(px(10.0))
+        .border_r_1()
+        .border_color(rgb(crate::BORDER))
+        .children(DebugPage::ALL.into_iter().map(move |page| {
+            let color = if page == active {
+                crate::GREEN
+            } else {
+                crate::SECONDARY
+            };
+            div()
+                .id(SharedString::from(format!("debug-nav-{}", page.label())))
+                .px(px(16.0))
+                .py(px(6.0))
+                .text_color(rgb(color))
+                .hover(|style| style.text_color(rgb(crate::BRIGHT)))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.debug_page = page;
+                    cx.notify();
+                }))
+                .child(page.label())
+        }))
+}
+
+fn page_body(shell: &mut Shell, cx: &mut Context<Shell>) -> AnyElement {
+    let body = match shell.debug_page {
+        DebugPage::Overview => overview_page(shell, cx).into_any_element(),
+        DebugPage::Connections => connections_page(shell, cx).into_any_element(),
+        DebugPage::Storage => storage_page(shell).into_any_element(),
+        DebugPage::Crypto => crypto_page(shell).into_any_element(),
+        DebugPage::Audio => audio_page(shell).into_any_element(),
+        DebugPage::Events => events_page(shell, cx).into_any_element(),
+    };
+    div()
+        .flex_1()
+        .min_w_0()
+        .h_full()
+        .overflow_hidden()
+        .p(px(6.0))
+        .child(body)
+        .into_any_element()
+}
+
+fn overview_page(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement + use<> {
+    let metrics = shell.debug.current.unwrap_or_default();
+    let peer_count = shell
+        .state
+        .as_ref()
+        .map(|s| s.peer_diagnostics().len())
+        .unwrap_or(0);
+    let events_headline = shell
+        .debug
+        .events
+        .back()
+        .map(|event| event.summary.clone())
+        .unwrap_or_else(|| "no events yet".to_string());
+
+    let connections = overview_card(
+        DebugPage::Connections,
+        "connections",
+        SharedString::from(format!("{peer_count} peers")),
+        None,
+        cx,
+    );
+    let storage = overview_card(
+        DebugPage::Storage,
+        "storage",
+        SharedString::from(format!(
+            "{} · {} msgs",
+            format_bytes(metrics.db_bytes),
+            metrics.messages_total
+        )),
+        Some(sparkline(&shell.debug.db_bytes_history, crate::GREEN).into_any_element()),
+        cx,
+    );
+    let crypto = overview_card(
+        DebugPage::Crypto,
+        "crypto",
+        SharedString::from(format!(
+            "epoch {} · rev {}",
+            metrics.content_epoch, metrics.membership_revision
+        )),
+        None,
+        cx,
+    );
+    let audio = overview_card(
+        DebugPage::Audio,
+        "audio",
+        SharedString::from(format!(
+            "{} sent · {} recv",
+            metrics.voice_frames_sent, metrics.voice_frames_received
+        )),
+        None,
+        cx,
+    );
+    let events = overview_card(
+        DebugPage::Events,
+        "events",
+        SharedString::from(events_headline),
+        None,
+        cx,
+    );
+
+    div()
+        .flex()
+        .flex_wrap()
+        .gap(px(10.0))
+        .p(px(8.0))
+        .child(connections)
+        .child(storage)
+        .child(crypto)
+        .child(audio)
+        .child(events)
+}
+
+fn overview_card(
+    page: DebugPage,
+    title: &'static str,
+    headline: SharedString,
+    extra: Option<AnyElement>,
+    cx: &mut Context<Shell>,
+) -> impl IntoElement + use<> {
+    div()
+        .id(SharedString::from(format!("debug-card-{}", page.label())))
+        .flex()
+        .flex_col()
+        .gap(px(8.0))
+        .w(px(220.0))
+        .p(px(14.0))
+        .border_1()
+        .border_color(rgb(crate::BORDER))
+        .rounded(px(6.0))
+        .hover(|style| style.border_color(rgb(crate::BORDER_BRIGHT)))
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.debug_page = page;
+            cx.notify();
+        }))
+        .child(div().text_color(rgb(crate::MUTED)).child(title))
+        .child(div().text_color(rgb(crate::TEXT)).child(headline))
+        .children(extra)
+}
+
+fn sparkline(history: &VecDeque<u64>, color: u32) -> impl IntoElement {
+    let samples: Vec<u64> = history
+        .iter()
+        .rev()
+        .take(SPARKLINE_LEN)
+        .rev()
+        .copied()
+        .collect();
+    let max = samples.iter().copied().max().unwrap_or(1).max(1);
+    div()
+        .flex()
+        .items_end()
+        .gap(px(1.0))
+        .h(px(24.0))
+        .children(samples.into_iter().map(move |value| {
+            let height = ((value as f32 / max as f32) * 22.0).max(1.0);
+            div().w(px(2.0)).h(px(height)).bg(rgb(color))
+        }))
+}
+
+fn format_bytes(bytes: u64) -> String {
+    match bytes {
+        0..=1023 => format!("{bytes} B"),
+        1024..=1_048_575 => format!("{:.1} KB", bytes as f64 / 1024.0),
+        1_048_576..=1_073_741_823 => format!("{:.1} MB", bytes as f64 / 1_048_576.0),
+        _ => format!("{:.1} GB", bytes as f64 / 1_073_741_824.0),
+    }
+}
+
+// used by task 7-8 pages
+#[allow(dead_code)]
+fn stat(label: &'static str, value: String) -> impl IntoElement {
+    div()
+        .flex()
+        .gap(px(8.0))
+        .py(px(2.0))
+        .child(
+            div()
+                .w(px(180.0))
+                .text_color(rgb(crate::MUTED))
+                .child(label),
+        )
+        .child(div().text_color(rgb(crate::TEXT)).child(value))
+}
+
+fn placeholder(label: &'static str) -> impl IntoElement {
+    div().p(px(14.0)).text_color(rgb(crate::MUTED)).child(label)
+}
+
+fn connections_page(_shell: &mut Shell, _cx: &mut Context<Shell>) -> impl IntoElement {
+    placeholder("connections — task 7")
+}
+
+fn storage_page(_shell: &Shell) -> impl IntoElement {
+    placeholder("storage — task 8")
+}
+
+fn crypto_page(_shell: &Shell) -> impl IntoElement {
+    placeholder("crypto — task 8")
+}
+
+fn audio_page(_shell: &Shell) -> impl IntoElement {
+    placeholder("audio — task 9")
+}
+
+fn events_page(_shell: &mut Shell, _cx: &mut Context<Shell>) -> impl IntoElement {
+    placeholder("events — task 9")
 }
 
 #[cfg(test)]

@@ -722,6 +722,10 @@ impl CommunityState {
         &self.local_address
     }
 
+    pub fn peer_diagnostics(&self) -> &[PeerDiagnostic] {
+        &self.diagnostics
+    }
+
     pub fn apply_diagnostics(&mut self, peers: &[PeerDiagnostic]) {
         self.diagnostics = peers.to_vec();
         self.online = peers
